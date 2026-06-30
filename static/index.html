@@ -124,6 +124,9 @@
 <select id="batSelect"><option value="">选择刷机脚本</option></select>
 <button class="btn small" id="importBatBtn" disabled>解析脚本</button>
 </div>
+<div style="margin-top:6px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+  解析失败？<a href="#" onclick="quickUploadScript();return false" style="color:var(--accent-orange,#ff9f0a)">📤 上传此脚本样本</a> 帮助改进 Hydra
+</div>
 <div class="rom-list-header" id="romListHeader" style="display:none">
 <span class="rom-list-title">已解压线刷包</span>
 <span class="rom-list-count" id="romListCount"></span>
@@ -526,7 +529,62 @@
 <button class="nav-item" data-view="batch"><span>⇅</span>线刷</button>
 <button class="nav-item" data-view="tools"><span>⌘</span>工具</button>
 <button class="nav-item" data-view="workbench"><span>🛠</span>工作台</button>
+<button class="nav-item" id="uploadNavBtn" onclick="openUploadDialog()" title="上传脚本样本"><span>📤</span>贡献</button>
 </nav>
+
+<!-- 📤 上传脚本对话框 -->
+<div class="modal-mask" id="uploadDialog">
+<div class="modal-box upload-dialog">
+<div class="modal-title">
+  <span>📤 上传脚本样本</span>
+  <span style="font-size:11px;color:var(--text-muted);font-weight:normal">帮助改进 Hydra 解析引擎</span>
+</div>
+<div class="upload-body">
+  <p class="tip" style="margin:0 0 8px 0">上传后文件名自动脱敏，脚本仅用于 Hydra 引擎改进，10天后自动删除。</p>
+  
+  <div class="upload-file-row">
+    <input type="file" id="uploadFileInput" accept=".bat,.cmd,.sh,.txt" onchange="onUploadFileSelect(event)" style="display:none">
+    <button class="btn small" onclick="document.getElementById('uploadFileInput').click()">📁 选择脚本文件</button>
+    <span id="uploadFileInfo" style="font-size:11px;color:var(--text-muted);margin-left:8px"></span>
+  </div>
+  
+  <div id="uploadPreview" style="display:none;margin-top:8px">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
+      <span>内容预览（前 20 行）</span>
+      <span id="uploadTotalLines" style="margin-left:8px"></span>
+    </div>
+    <pre id="uploadPreviewContent" style="background:#000;color:var(--accent-green);padding:8px;border-radius:6px;font-size:11px;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-all"></pre>
+  </div>
+  
+  <div class="upload-meta-row" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <input type="text" id="uploadBrand" placeholder="品牌（如 xiaomi）" style="width:100px;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color)">
+    <input type="text" id="uploadModel" placeholder="型号（如 cupid）" style="width:100px;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color)">
+  </div>
+  
+  <!-- 进度条 -->
+  <div id="uploadProgressWrap" style="display:none;margin-top:8px">
+    <div style="height:4px;background:var(--rule);border-radius:2px;overflow:hidden">
+      <div id="uploadProgressBar" style="height:100%;width:0%;background:var(--accent-green,#67c23a);border-radius:2px;transition:width 0.3s"></div>
+    </div>
+  </div>
+  
+  <!-- Hydra 解析结果 -->
+  <div id="uploadHydraResult" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(48,209,88,0.08);border:1px solid rgba(48,209,88,0.2);border-radius:8px;font-size:11px">
+    <strong>🤖 Hydra 解析结果</strong><br>
+    步骤数：<span id="uploadHydraSteps">0</span> 步 · 
+    类型：<span id="uploadHydraType">-</span> · 
+    <span id="uploadHydraSimple">-</span>
+  </div>
+  
+  <!-- 结果显示 -->
+  <div id="uploadResult" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;font-size:12px"></div>
+</div>
+<div class="modal-actions">
+  <button class="btn secondary small" onclick="closeUploadDialog()">取消</button>
+  <button class="btn small" id="uploadSubmitBtn" disabled onclick="submitUpload()">确认上传</button>
+</div>
+</div>
+</div>
 
 <!-- 确认弹窗 -->
 <div class="modal-mask" id="confirmModal">
@@ -558,6 +616,7 @@
 <script src="/static/js/workbench.js"></script>
 <script src="/static/js/tools.js"></script>
 <script src="/static/js/changelog.js"></script>
+<script src="/static/js/upload.js"></script>
 <script src="/static/js/init.js"></script>
 </body>
 </html>
