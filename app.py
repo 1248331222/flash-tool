@@ -19,7 +19,6 @@ import sys
 
 from flask import Flask, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
-from flask_cors import CORS
 
 from config import (
     TOOL_VERSION,
@@ -45,6 +44,7 @@ from routes.api_device import device_bp
 from routes.api_toolbox import toolbox_bp
 from routes.api_usb import usb_bp
 from routes.api_batch import batch_task_bp
+from routes.api_upload import upload_bp
 
 
 # ============ Flask 应用 ============
@@ -60,8 +60,13 @@ socketio = SocketIO(
     ping_interval=25
 )
 
-# 允许跨域访问（GitHub Pages 部署时需要）
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# 允许跨域访问（GitHub Pages 部署时需要） - 通过 after_request 添加 CORS headers
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    return response
 
 # 注入 socketio 引用到 routes.socketio，并注册所有事件
 init_socketio(socketio)
@@ -76,6 +81,7 @@ app.register_blueprint(device_bp)
 app.register_blueprint(toolbox_bp)
 app.register_blueprint(usb_bp)
 app.register_blueprint(batch_task_bp)
+app.register_blueprint(upload_bp)
 
 
 # ============ 错误诊断 API ============

@@ -1,14 +1,14 @@
 # flash_tool/routes/api_upload.py
 # 脚本上传模块 - WebDAV 上传到 OpenList / Hydra 预解析
+# 纯标准库实现，无额外依赖
 
-import os, re, json, time, hashlib, random
+import os, re, json, time, hashlib, random, base64
+from urllib import request as urllib_request
+from urllib.error import URLError
 from flask import Blueprint, request, jsonify, current_app
-import requests
-from requests.auth import HTTPBasicAuth
 
 from config import WEBDAV_URL, WEBDAV_USER, WEBDAV_PASS, UPLOAD_DIR, logger
-from core.hydra.ast_parser import parse_script
-from core.hydra.types import ScriptType
+from core.hydra import HydraEngine
 
 upload_bp = Blueprint('upload', __name__, url_prefix='/api/script')
 
@@ -54,20 +54,18 @@ def _hydra_preview(content: str, filename: str) -> dict:
     try:
         # 判断脚本类型
         ext = os.path.splitext(filename)[1].lower()
-        if ext in ('.sh',):
-            script_type = ScriptType.SH
-        elif ext in ('.bat', '.cmd'):
-            script_type = ScriptType.BAT
-        else:
-            script_type = ScriptType.AUTO
+        script_type = 'sh' if ext in ('.sh',) else 'bat'
 
-        result = parse_script(content, filename, script_type)
-        steps = result.get('steps', [])
+        engine = HydraEngine()
+        result = engine.parse(content, script_type=script_type, script_path=filename)
+        if result is None:
+            return {"is_simple": False, "step_count": 0, "parse_errors": ["解析返回空"], "script_type": "unknown"}
+
         return {
-            "is_simple": not result.get('is_complex', False),
-            "step_count": len(steps),
-            "parse_errors": result.get('errors', []),
-            "script_type": result.get('script_type', 'unknown'),
+            "is_simple": result.is_simple,
+            "step_count": result.total_steps or len(result.steps),
+            "parse_errors": result.warnings,
+            "script_type": result.script_type,
         }
     except Exception as e:
         logger.warning(f"Hydra 预解析失败: {e}")
@@ -80,24 +78,34 @@ def _hydra_preview(content: str, filename: str) -> dict:
 
 
 def _upload_via_webdav(file_path: str, remote_name: str) -> bool:
-    """通过 WebDAV PUT 上传文件到 OpenList"""
+    """通过 WebDAV PUT 上传文件到 OpenList（纯标准库实现）"""
     url = WEBDAV_URL.rstrip('/') + '/' + remote_name
     try:
         with open(file_path, 'rb') as f:
             content = f.read()
-        r = requests.put(
+
+        # Basic Auth
+        auth_str = base64.b64encode(f"{WEBDAV_USER}:{WEBDAV_PASS}".encode()).decode()
+        req = urllib_request.Request(
             url,
             data=content,
-            auth=HTTPBasicAuth(WEBDAV_USER, WEBDAV_PASS),
-            headers={'Content-Type': 'application/octet-stream'},
-            timeout=30
+            method='PUT',
+            headers={
+                'Content-Type': 'application/octet-stream',
+                'Authorization': f'Basic {auth_str}',
+            }
         )
-        if r.status_code in (201, 204):
-            logger.info(f"WebDAV 上传成功: {remote_name}")
-            return True
-        else:
-            logger.error(f"WebDAV 上传失败: {r.status_code} {r.text}")
-            return False
+        with urllib_request.urlopen(req, timeout=30) as resp:
+            code = resp.status
+            if code in (201, 204):
+                logger.info(f"WebDAV 上传成功: {remote_name}")
+                return True
+            else:
+                logger.error(f"WebDAV 上传失败: HTTP {code}")
+                return False
+    except URLError as e:
+        logger.error(f"WebDAV 上传异常: {e}")
+        return False
     except Exception as e:
         logger.error(f"WebDAV 上传异常: {e}")
         return False
