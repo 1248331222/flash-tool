@@ -16,14 +16,7 @@ function refreshUploadList() {
                 return;
             }
             listEl.innerHTML = data.files.map(f => {
-                const region = f.brand ? 
-                    (f.brand === 'xiaomi' ? '广东网友' : 
-                     f.brand === 'oneplus' ? '浙江网友' :
-                     f.brand === 'samsung' ? '山东网友' :
-                     f.brand === 'huawei' ? '北京网友' :
-                     f.brand === 'oppo' ? '四川网友' :
-                     f.brand === 'vivo' ? '湖北网友' :
-                     `${f.brand}网友`) : '匿名网友';
+                const region = f.brand || '匿名';
                 const time = f.upload_time ? f.upload_time.slice(5, 16) : '';
                 return `<div class="upload-history-item">
                     <div class="upload-history-name">${escHtml(f.original_name)}</div>
