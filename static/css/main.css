@@ -284,6 +284,12 @@ body[data-run-mode="backend"] .webusb-mode-only{display:none!important}
 .theme-toggle{position:fixed;top:12px;right:12px;width:40px;height:40px;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:none;border-radius:999px;padding:0;cursor:pointer;color:var(--text-primary);font-size:18px;z-index:100;transition:background 0.3s;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 .theme-toggle:hover{background:var(--bg-tertiary)}
 
+/* ============ 上传悬浮按钮 ============ */
+.upload-fab{position:fixed;top:58px;right:12px;width:40px;height:40px;background:var(--accent-orange,#ff9f0a);border:none;border-radius:999px;padding:0;cursor:pointer;color:#fff;font-size:20px;z-index:100;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(255,159,10,0.3);transition:background 0.3s,transform 0.2s}
+.upload-fab:hover{background:#e08f09;transform:scale(1.1)}
+.upload-fab:active{transform:scale(0.95)}
+@media (max-width:600px){.upload-fab{top:54px;right:10px;width:38px;height:38px;font-size:18px}}
+
 /* ============ 响应式 ============ */
 @media (max-width:600px){
     body{padding:56px 10px calc(78px + env(safe-area-inset-bottom))}

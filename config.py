@@ -8,9 +8,14 @@ import shutil
 import logging
 
 # ============ 版本信息 ============
-TOOL_VERSION = "3.4.0"
+TOOL_VERSION = "3.4.1"
 # 更新日志：
-# 3.4.0 (2025-07-01)
+# 3.4.1 (2026-07-01)
+#   - 新增：脚本上传功能（WebDAV→OpenList + Hydra 预解析 + 安全扫描）
+#   - 新增：底部悬浮「📤」上传按钮
+#   - 前端：底部导航栏精简为 4 项
+#   - 优化：去掉 flask-cors 依赖，使用原生 CORS headers
+# 3.4.0 (2026-07-01)
 #   - Hydra 引擎：修复 SH 嵌套 for 循环 + if 条件后的命令被 AST 解析器忽略的问题
 #   - Hydra 引擎：新增 $(cd ... && pwd) 子 shell 简化，修复 CURRENT_DIR 推导
 #   - Hydra 引擎：新增 set /p 用户输入模拟，set /a 算术表达式标记
@@ -125,6 +130,12 @@ def setup_logging():
     return logging.getLogger('flash_tool')
 
 logger = setup_logging()
+
+# ============ WebDAV / OpenList 上传配置 ============
+WEBDAV_URL = "http://81.68.84.205:5244/dav"
+WEBDAV_USER = "123456"
+WEBDAV_PASS = "123456"
+UPLOAD_DIR = os.path.join(PUBLIC_DIR, "uploaded_scripts")
 
 # ============ 超时与轮询配置 ============
 FASTBOOT_DEFAULT_TIMEOUT = 1800

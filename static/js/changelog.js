@@ -1,7 +1,13 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.4.0 (2026-07-01)
+const CHANGELOG_TEXT = `v3.4.1 (2026-07-01)
+- 新增：脚本上传功能（WebDAV→OpenList + Hydra 预解析 + 安全扫描）
+- 新增：底部悬浮「📤」上传按钮
+- 前端：底部导航栏精简为 4 项
+- 优化：去掉 flask-cors 依赖，使用原生 CORS headers
+
+v3.4.0 (2026-07-01)
 - Hydra 引擎：修复 SH 嵌套 for 循环 + if 条件后的命令被 AST 解析器忽略的问题
 - Hydra 引擎：新增 $(cd ... && pwd) 子 shell 简化，修复 CURRENT_DIR 推导
 - Hydra 引擎：新增 set /p 用户输入模拟，set /a 算术表达式标记

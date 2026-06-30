@@ -12,6 +12,9 @@
 <!-- 主题切换按钮 -->
 <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙 深色</button>
 
+<!-- 📤 上传脚本悬浮按钮 -->
+<button class="upload-fab" id="uploadFabBtn" onclick="openUploadDialog()" title="上传脚本样本">📤</button>
+
 <div id="envStatus" class="env-status" style="display:none"></div>
 <div class="global-status" id="globalStatus"><span class="pulse-dot"></span><span id="globalStatusText">未连接设备 · 请先检测设备</span></div>
 
@@ -529,7 +532,6 @@
 <button class="nav-item" data-view="batch"><span>⇅</span>线刷</button>
 <button class="nav-item" data-view="tools"><span>⌘</span>工具</button>
 <button class="nav-item" data-view="workbench"><span>🛠</span>工作台</button>
-<button class="nav-item" id="uploadNavBtn" onclick="openUploadDialog()" title="上传脚本样本"><span>📤</span>贡献</button>
 </nav>
 
 <!-- 📤 上传脚本对话框 -->
