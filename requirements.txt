@@ -1,0 +1,3 @@
+# flash_tool/requirements.txt
+flask
+flask-socketio
