@@ -36,9 +36,9 @@ TOOL_VERSION = "3.4.1"
 #   - 原生执行：inject_reconnect_wait 变量覆盖移到脚本末尾避免被原始赋值覆盖
 #   - 原生执行：reboot_re 正则扩展匹配 $VAR/"$VAR" 形式的变量调用
 # 注意：当前使用 HTTP，若服务器支持 HTTPS 建议切换以保证下载完整性
-UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/sd/flash_tool"
+UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/@s/123456"
 UPDATE_ZIP_URL = f"{UPDATE_REMOTE_BASE}/flash_tool.zip"
-UPDATE_CHECK_URL = f"{UPDATE_REMOTE_BASE}/config.py"
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/main/config.py"
 
 # ============ 路径配置 ============
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))

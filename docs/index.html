@@ -223,6 +223,13 @@
 <div class="report-card" id="flashReportCard"></div>
 <!-- v3.0.5: 线刷独立输出区域 -->
 <div id="batchOutputArea" style="display:none; max-height:300px; overflow-y:auto; background:#000; color:var(--accent-green); border:1px solid var(--rule); border-radius:10px; padding:10px; font-family:'Fira Code','Consolas',monospace; font-size:12px; margin-top:8px;"></div>
+
+<!-- 刷机历史 -->
+<div class="sub-section" style="margin-top:12px">
+<h3 style="font-size:13px">📋 刷机历史</h3>
+<button class="btn secondary small" id="loadHistoryBtn">加载历史记录</button>
+<div id="flashHistoryList" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
+</div>
 </div>
 
 <!-- 工作台 v3.2.0 -->
@@ -310,9 +317,9 @@
 <div class="sub-section">
 <h3 style="font-size:13px">添加步骤</h3>
 <div class="wb-type-switch">
-<button class="wb-type-btn active" data-type="fastboot" onclick="wbSwitchType('fastboot')">📡 Fastboot</button>
-<button class="wb-type-btn" data-type="adb" onclick="wbSwitchType('adb')">📱 ADB</button>
-<button class="wb-type-btn" data-type="shell" onclick="wbSwitchType('shell')">💻 Shell</button>
+<button class="wb-type-btn active" data-type="fastboot" onclick="wbSwitchType('fastboot')">刷写命令</button>
+<button class="wb-type-btn" data-type="adb" onclick="wbSwitchType('adb')">ADB 命令</button>
+<button class="wb-type-btn" data-type="shell" onclick="wbSwitchType('shell')">Shell 命令</button>
 </div>
 <div id="wbAddFastboot">
 <div class="custom-row">
@@ -511,11 +518,6 @@
 </details>
 
 <div class="divider"></div>
-<div class="tool-group">
-<h3>刷机历史</h3>
-<button class="btn secondary small" id="loadHistoryBtn">加载历史记录</button>
-<div id="flashHistoryList" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
-</div>
 </div>
 
 <!-- 工作台方案管理弹窗 -->
@@ -584,6 +586,13 @@
 <div class="modal-actions">
   <button class="btn secondary small" onclick="closeUploadDialog()">取消</button>
   <button class="btn small" id="uploadSubmitBtn" disabled onclick="submitUpload()">确认上传</button>
+</div>
+<!-- 喂养九头蛇列表 -->
+<div class="upload-history-section">
+  <div class="upload-history-title">🐉 喂养九头蛇</div>
+  <div id="uploadHistoryList" class="upload-history-list">
+    <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">加载中...</div>
+  </div>
 </div>
 </div>
 </div>

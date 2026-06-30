@@ -2,7 +2,46 @@
 // ============ 脚本上传功能 ============
 
 let _selectedUploadFile = null;
+// 上传成功后刷新列表
+function refreshUploadList() {
+    const listEl = document.getElementById('uploadHistoryList');
+    if (!listEl) return;
+    
+    const baseUrl = window.BACKEND_API_URL || '';
+    fetch(baseUrl + '/api/script/list')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.files.length) {
+                listEl.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">暂无上传记录</div>';
+                return;
+            }
+            listEl.innerHTML = data.files.map(f => {
+                const region = f.brand ? 
+                    (f.brand === 'xiaomi' ? '广东网友' : 
+                     f.brand === 'oneplus' ? '浙江网友' :
+                     f.brand === 'samsung' ? '山东网友' :
+                     f.brand === 'huawei' ? '北京网友' :
+                     f.brand === 'oppo' ? '四川网友' :
+                     f.brand === 'vivo' ? '湖北网友' :
+                     `${f.brand}网友`) : '匿名网友';
+                const time = f.upload_time ? f.upload_time.slice(5, 16) : '';
+                return `<div class="upload-history-item">
+                    <div class="upload-history-name">${escHtml(f.original_name)}</div>
+                    <div class="upload-history-meta">
+                        <span>${region}</span>
+                        ${f.step_count ? `<span>${f.step_count}步</span>` : ''}
+                        ${time ? `<span>${time}</span>` : ''}
+                        <span class="upload-history-type">${f.script_type}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        })
+        .catch(() => {
+            listEl.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">加载失败</div>';
+        });
+}
 
+// 打开对话框时刷新列表
 function openUploadDialog() {
     const dialog = document.getElementById('uploadDialog');
     if (dialog) dialog.classList.add('show');
@@ -16,6 +55,9 @@ function openUploadDialog() {
     document.getElementById('uploadResult').style.display = 'none';
     document.getElementById('uploadSubmitBtn').disabled = true;
     _selectedUploadFile = null;
+    
+    // 刷新上传列表
+    refreshUploadList();
 }
 
 function closeUploadDialog() {
@@ -151,6 +193,8 @@ async function submitUpload() {
             }
             
             result.textContent = msg;
+            // 刷新列表
+            refreshUploadList();
         } else {
             result.className = 'upload-result error';
             result.textContent = `❌ ${resp.message || '上传失败'}`;

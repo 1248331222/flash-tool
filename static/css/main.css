@@ -290,6 +290,22 @@ body[data-run-mode="backend"] .webusb-mode-only{display:none!important}
 .upload-fab:active{transform:scale(0.95)}
 @media (max-width:600px){.upload-fab{top:54px;right:10px;width:38px;height:38px;font-size:18px}}
 
+/* ============ 上传对话框 ============ */
+.upload-dialog{max-width:480px;max-height:90vh;display:flex;flex-direction:column}
+.upload-body{flex:1;overflow-y:auto;padding:0 4px}
+.upload-file-row{display:flex;align-items:center;margin:4px 0}
+.upload-meta-row input{font-size:12px}
+.upload-result.success{background:rgba(48,209,88,0.1);color:var(--accent-green);border:1px solid rgba(48,209,88,0.2)}
+.upload-result.error{background:rgba(255,69,58,0.1);color:var(--accent-red);border:1px solid rgba(255,69,58,0.2)}
+.upload-history-section{border-top:1px solid var(--rule);margin-top:8px;padding-top:8px}
+.upload-history-title{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.upload-history-list{max-height:200px;overflow-y:auto}
+.upload-history-item{padding:6px 8px;border-radius:6px;margin-bottom:4px;background:var(--bg-card,rgba(255,255,255,0.03))}
+.upload-history-item:hover{background:var(--bg-tertiary)}
+.upload-history-name{font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-history-meta{display:flex;gap:8px;font-size:10px;color:var(--text-muted);margin-top:2px}
+.upload-history-type{background:var(--accent-orange,transparent);color:var(--accent-orange);padding:0 4px;border-radius:3px;font-size:9px}
+
 /* ============ 响应式 ============ */
 @media (max-width:600px){
     body{padding:56px 10px calc(78px + env(safe-area-inset-bottom))}
