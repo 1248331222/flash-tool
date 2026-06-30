@@ -1,4 +1,4 @@
-// flash_tool/static/js/device_info.js
+// flash_tooljs/device_info.js
 // ============ 补充函数 ============
 function getFastbootModeLabel() {
     const raw = String(deviceInfo.is_userspace || deviceInfo['is-userspace'] || '').trim().toLowerCase();

@@ -259,3 +259,51 @@ def list_uploads():
     
     files.sort(key=lambda x: x.get("upload_time", ""), reverse=True)
     return jsonify({"success": True, "files": files})
+
+
+@upload_bp.route('/view/<file_id>', methods=['GET'])
+def view_script(file_id):
+    """查看已上传脚本的内容"""
+    # 安全检查：防止路径遍历
+    if '..' in file_id or '/' in file_id or '\\' in file_id:
+        return jsonify({"success": False, "error": "无效的文件名"})
+    
+    local_path = os.path.join(UPLOAD_DIR, file_id)
+    if not os.path.exists(local_path):
+        return jsonify({"success": False, "error": "文件不存在"})
+    
+    # 读取元数据
+    meta_path = os.path.join(UPLOAD_DIR, 'metadata.json')
+    meta_info = {}
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                all_meta = json.load(f)
+                meta_info = all_meta.get(file_id, {})
+        except:
+            pass
+    
+    # 读取文件内容（限制 1MB）
+    try:
+        with open(local_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        with open(local_path, 'rb') as f:
+            raw = f.read()
+        content = raw.decode('utf-8', errors='replace')
+    
+    # 限制返回大小
+    max_chars = 100 * 1024  # 100KB
+    if len(content) > max_chars:
+        content = content[:max_chars] + f"\n\n...（文件过大，仅显示前 {max_chars} 字符）"
+    
+    return jsonify({
+        "success": True,
+        "file_id": file_id,
+        "original_name": meta_info.get("original_name", ""),
+        "upload_time": meta_info.get("upload_time", ""),
+        "brand": meta_info.get("brand", ""),
+        "device_model": meta_info.get("device_model", ""),
+        "step_count": meta_info.get("hydra_result", {}).get("step_count", 0),
+        "content": content,
+    })

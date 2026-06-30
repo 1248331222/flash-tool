@@ -18,7 +18,7 @@ function refreshUploadList() {
             listEl.innerHTML = data.files.map(f => {
                 const region = f.brand || '匿名';
                 const time = f.upload_time ? f.upload_time.slice(5, 16) : '';
-                return `<div class="upload-history-item">
+                return `<div class="upload-history-item" onclick="viewUploadedScript('${escHtml(f.file_id)}')">
                     <div class="upload-history-name">${escHtml(f.original_name)}</div>
                     <div class="upload-history-meta">
                         <span>${region}</span>
@@ -210,3 +210,63 @@ document.addEventListener('click', function(e) {
         if (e.target === dialog) closeUploadDialog();
     }
 });
+
+// ============ 查看已上传的脚本内容 ============
+function viewUploadedScript(fileId) {
+    const baseUrl = window.BACKEND_API_URL || '';
+    fetch(baseUrl + '/api/script/view/' + encodeURIComponent(fileId))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showToast(data.error || '加载失败');
+                return;
+            }
+            
+            // 创建一个预览弹窗
+            const overlay = document.createElement('div');
+            overlay.className = 'dialog-overlay show';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:2000;display:flex;align-items:center;justify-content:center;';
+            
+            const box = document.createElement('div');
+            box.className = 'dialog-box upload-script-viewer';
+            box.style.cssText = 'background:var(--card-bg);border-radius:12px;width:90%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.4);';
+            
+            // 标题
+            const header = document.createElement('div');
+            header.style.cssText = 'padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;';
+            header.innerHTML = `<strong style="font-size:15px">📄 ${escHtml(data.original_name || fileId)}</strong>
+                <button onclick="this.closest('.dialog-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>`;
+            
+            // meta 信息
+            const meta = document.createElement('div');
+            meta.style.cssText = 'padding:8px 16px;border-bottom:1px solid var(--border-color);font-size:12px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;';
+            let metaHtml = '';
+            if (data.brand) metaHtml += `<span>🏷 ${escHtml(data.brand)}</span>`;
+            if (data.device_model) metaHtml += `<span>📱 ${escHtml(data.device_model)}</span>`;
+            if (data.step_count) metaHtml += `<span>📋 ${data.step_count} 步</span>`;
+            if (data.upload_time) metaHtml += `<span>🕐 ${data.upload_time}</span>`;
+            meta.innerHTML = metaHtml || '<span>暂无元数据</span>';
+            
+            // 内容
+            const body = document.createElement('div');
+            body.style.cssText = 'padding:12px 16px;overflow-y:auto;flex:1;';
+            const pre = document.createElement('pre');
+            pre.style.cssText = 'margin:0;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;color:var(--text-color);background:var(--bg-color);padding:12px;border-radius:8px;max-height:50vh;overflow:auto;';
+            
+            // 限制显示行数
+            const lines = data.content.split('\\n');
+            const maxLines = 500;
+            pre.textContent = lines.slice(0, maxLines).join('\\n') + (lines.length > maxLines ? '\\n\\n...（仅显示前500行，共' + lines.length + '行）' : '');
+            
+            body.appendChild(pre);
+            
+            box.appendChild(header);
+            if (meta.innerHTML) box.appendChild(meta);
+            box.appendChild(body);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        })
+        .catch(() => {
+            showToast('网络错误，无法加载脚本内容');
+        });
+}

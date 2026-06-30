@@ -1,4 +1,4 @@
-// flash_tool/static/js/device.js
+// flash_tooljs/device.js
 // ============ 环境检查 ============
 async function checkEnv() {
     try {

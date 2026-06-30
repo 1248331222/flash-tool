@@ -1,4 +1,4 @@
-// flash_tool/static/js/bat.js
+// flash_tooljs/bat.js
 // ============ BAT 脚本 ============
 async function refreshBatList() {
     const rn = getSelectedRomProject();

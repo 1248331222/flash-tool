@@ -1,4 +1,4 @@
-// flash_tool/static/js/ui.js
+// flash_tooljs/ui.js
 // ============ 进度条 ============
 function showProgress(label = '任务进度') {
     progressContainer.style.display = 'block';

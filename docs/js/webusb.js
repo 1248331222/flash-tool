@@ -1,4 +1,4 @@
-// flash_tool/static/js/webusb.js
+// flash_tooljs/webusb.js
 function validateWebUsbScriptImages() {
     if (stepList.length === 0) return {ok: true, missing: []};
     const missing = [];

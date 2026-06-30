@@ -1,4 +1,4 @@
-// flash_tool/static/js/state.js
+// flash_tooljs/state.js
 // ============ 应用状态（集中管理） ============
 let _savedMode;
 try { _savedMode = localStorage.getItem('run_mode'); } catch(e) { _savedMode = null; }

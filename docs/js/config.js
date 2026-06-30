@@ -1,4 +1,4 @@
-// flash_tool/static/js/config.js
+// flash_tooljs/config.js
 // ============ 后端地址配置 ============
 // 部署到 GitHub Pages 时，在这里配置你的后端服务器地址
 // 局域网示例：http://192.168.1.100:5000

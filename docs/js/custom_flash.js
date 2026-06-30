@@ -1,4 +1,4 @@
-// flash_tool/static/js/custom_flash.js
+// flash_tooljs/custom_flash.js
 // ============ 自定义单刷 ============
 const customImgSourceEl = document.getElementById('customImgSource');
 const customRomSelectEl = document.getElementById('customRomSelect');

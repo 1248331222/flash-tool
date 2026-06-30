@@ -1,4 +1,4 @@
-// flash_tool/static/js/utils.js
+// flash_tooljs/utils.js
 // ============ 通用辅助函数 ============
 
 /** HTML 转义，防止注入 */

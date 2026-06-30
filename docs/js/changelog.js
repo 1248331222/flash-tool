@@ -1,4 +1,4 @@
-// flash_tool/static/js/changelog.js
+// flash_tooljs/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
 const CHANGELOG_TEXT = `v3.4.1 (2026-07-01)

@@ -1,4 +1,4 @@
-// flash_tool/static/js/api.js
+// flash_tooljs/api.js
 // ============ WebSocket 连接 ============
 function updateEnvStatusConnection() {
     envStatusEl.className = envStatusBaseClass;

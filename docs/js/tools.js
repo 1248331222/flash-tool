@@ -1,4 +1,4 @@
-// flash_tool/static/js/tools.js
+// flash_tooljs/tools.js
 // ============ 版本与更新 ============
 async function loadVersion() {
     const verEl = document.getElementById('toolVersion');

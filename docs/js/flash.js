@@ -1,4 +1,4 @@
-// flash_tool/static/js/flash.js
+// flash_tooljs/flash.js
 // ============ 线刷 ============
 document.getElementById('batchFlashBtn').onclick = async () => {
     if (appRunMode === 'webusb') {

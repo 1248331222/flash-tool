@@ -1,4 +1,4 @@
-// flash_tool/static/js/workbench.js
+// flash_tooljs/workbench.js
 // ============ 工作台 v3.2.0 ============
 // 注：wbSteps / wbExecuting / wbDetectedPartitions / wbCurrentType 已在 state.js 中声明
 

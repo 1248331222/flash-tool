@@ -1,4 +1,4 @@
-// flash_tool/static/js/bat_risk.js
+// flash_tooljs/bat_risk.js
 
 // 禁用步骤编辑功能（复杂脚本模式）
     // v3.0.0: useCustomScript - 用户确认使用手动输入的自定义 .sh 脚本

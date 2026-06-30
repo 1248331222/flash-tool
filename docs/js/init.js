@@ -1,4 +1,4 @@
-// flash_tool/static/js/init.js
+// flash_tooljs/init.js
 // ============ 初始化 ============
 
 async function init() {

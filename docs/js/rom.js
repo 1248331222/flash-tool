@@ -1,4 +1,4 @@
-// flash_tool/static/js/rom.js
+// flash_tooljs/rom.js
 // ============ 镜像管理 ============
 async function loadProjectImages() {
     try {

@@ -1,4 +1,4 @@
-// flash_tool/static/js/toolbox_ops.js
+// flash_tooljs/toolbox_ops.js
 
 // ============ 重启 ============
 const rebootSysTask = new ModuleTask('工具箱', '重启系统');
