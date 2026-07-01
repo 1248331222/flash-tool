@@ -1,0 +1,6 @@
+.backup/
+flash_tool.log
+server.log
+__pycache__/
+*.pyc
+nul
