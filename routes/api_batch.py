@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_batch.py
+# Skytree Flasher / routes/api_batch.py
 """批量刷机任务路由 - 启动/状态/取消/导出日志/直接执行脚本
 
 辅助函数（public_task / force_rewrite_fastboot_paths / inject_reconnect_wait /

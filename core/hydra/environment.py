@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/environment.py
+# Skytree Flasher / core/hydra/environment.py
 """
 Hydra — 环境模拟器
 ====================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/updater.py
+# Skytree Flasher / core/updater.py
 """
 core/updater.py — 版本检查与自更新
 从单文件版提取，原 Flask 路由 api_update_check / api_update_do 的核心逻辑

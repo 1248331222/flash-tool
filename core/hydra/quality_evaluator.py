@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/quality_evaluator.py
+# Skytree Flasher / core/hydra/quality_evaluator.py
 """
 Hydra — 解析质量评估器
 ========================

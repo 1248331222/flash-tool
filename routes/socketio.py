@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/socketio.py
+# Skytree Flasher / routes/socketio.py
 """SocketIO 事件处理与任务推送模块
 
 socketio 对象在 app.py 中创建，本模块通过 init_socketio() 接收引用。

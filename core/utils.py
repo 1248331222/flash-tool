@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/utils.py
+# Skytree Flasher / core/utils.py
 """
 core/utils.py — API 响应辅助、路径/文件名校验、错误诊断
 从单文件版提取，函数逻辑保持不变。

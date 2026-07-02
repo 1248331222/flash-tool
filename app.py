@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/app.py
+# Skytree Flasher / app.py
 """
-Termux 网页刷机 - 应用入口
+天树刷机 (Skytree Flasher) - 应用入口
 用无 Root 手机给另一台手机刷机
 
 ================== 启动方式 ==================
@@ -185,7 +185,7 @@ def run_server(host='127.0.0.1', port=8080, debug=False):
     init_directories()
 
     print("=" * 50)
-    print("  Termux 网页刷机 (All-In-One)")
+    print("  天树刷机 (Skytree Flasher)")
     print("=" * 50)
     print(f"  本机访问: http://127.0.0.1:{port}")
     if host == '0.0.0.0':

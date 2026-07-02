@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/types.py
+# Skytree Flasher / core/hydra/types.py
 """
 Hydra — 数据类型定义
 ======================

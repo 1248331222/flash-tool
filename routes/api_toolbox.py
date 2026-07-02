@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_toolbox.py
+# Skytree Flasher / routes/api_toolbox.py
 """工具箱路由 - 重启/擦除/切槽/OEM"""
 
 from flask import Blueprint, request, jsonify

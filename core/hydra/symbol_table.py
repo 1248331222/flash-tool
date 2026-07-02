@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/symbol_table.py
+# Skytree Flasher / core/hydra/symbol_table.py
 """
 Hydra — 变量符号表
 ====================

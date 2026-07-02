@@ -1,2 +1,2 @@
-# flash_tool/core/__init__.py
+# Skytree Flasher / core/__init__.py
 # core package

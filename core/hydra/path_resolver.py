@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/path_resolver.py
+# Skytree Flasher / core/hydra/path_resolver.py
 """
 Hydra — 统一路径解析器
 ========================

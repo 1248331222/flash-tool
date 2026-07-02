@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/rom_handler.py
+# Skytree Flasher / core/rom_handler.py
 """
 core/rom_handler.py — ROM 类型识别、脚本解析
 """

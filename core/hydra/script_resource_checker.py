@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/script_resource_checker.py
+# Skytree Flasher / core/hydra/script_resource_checker.py
 """
 Hydra — 脚本-资源一致性校验器
 ==============================

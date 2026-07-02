@@ -1,4 +1,4 @@
-# flash_tool/routes/api_batch_helpers.py
+# Skytree Flasher / routes/api_batch_helpers.py
 # -*- coding: utf-8 -*-
 """
 routes/api_batch_helpers.py — 批量刷机路由辅助函数

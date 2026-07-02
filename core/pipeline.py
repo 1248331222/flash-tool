@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/pipeline.py
+# Skytree Flasher / core/pipeline.py
 """
 Hydra 分析 → 执行引擎 协同中间层
 ===================================

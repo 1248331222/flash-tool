@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/classifier.py
+# Skytree Flasher / core/hydra/classifier.py
 """
 脚本分类器 — 按步骤结构特征分类
 ===================================

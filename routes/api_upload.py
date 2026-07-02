@@ -1,4 +1,4 @@
-# flash_tool/routes/api_upload.py
+# Skytree Flasher / routes/api_upload.py
 # 脚本上传模块 - WebDAV 上传到 OpenList / 天树引擎预解析
 # 纯标准库实现，无额外依赖
 

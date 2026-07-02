@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/step_classifier.py
+# Skytree Flasher / core/hydra/step_classifier.py
 """
 Hydra — 步骤分类器
 ===================

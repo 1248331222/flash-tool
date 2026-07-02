@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/command_extractor.py
+# Skytree Flasher / core/hydra/command_extractor.py
 """
 Hydra — 命令提取器
 ====================

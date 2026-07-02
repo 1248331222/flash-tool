@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/script_type_detector.py
+# Skytree Flasher / core/hydra/script_type_detector.py
 """
 Hydra — 脚本类型自动识别
 =========================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/ast_parser.py
+# Skytree Flasher / core/hydra/ast_parser.py
 """
 Hydra — AST 解析器
 ====================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/rom_profile.py
+# Skytree Flasher / core/hydra/rom_profile.py
 """
 Hydra — ROM Profile 分类器
 ==========================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/cmd_sandbox/runtime.py
+# Skytree Flasher / core/hydra/cmd_sandbox/runtime.py
 """
 Hydra — Win CMD 沙箱：运行时环境（变量、目录、errorlevel 等）
 """

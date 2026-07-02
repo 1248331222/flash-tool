@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/__init__.py
+# Skytree Flasher / core/hydra/__init__.py
 """
 天树引擎 — 入口模块
 =====================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/script_preprocessor.py
+# Skytree Flasher / core/hydra/script_preprocessor.py
 """
 Hydra — 脚本预处理层
 ======================

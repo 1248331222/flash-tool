@@ -1,4 +1,4 @@
-# flash_tool/core/fastboot_cmd_parser.py
+# Skytree Flasher / core/fastboot_cmd_parser.py
 # -*- coding: utf-8 -*-
 """
 core/fastboot_cmd_parser.py — fastboot 命令解析与风险定级

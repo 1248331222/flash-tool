@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/extractor.py
+# Skytree Flasher / core/extractor.py
 """
 core/extractor.py — ROM 包解压任务管理
 从单文件版提取，函数逻辑保持不变。

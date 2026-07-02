@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/flasher.py
+# Skytree Flasher / core/flasher.py
 """
 core/flasher.py — 单分区刷写
 从单文件版提取，函数逻辑保持不变。

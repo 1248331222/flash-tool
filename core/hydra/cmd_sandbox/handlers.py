@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/cmd_sandbox/handlers.py
+# Skytree Flasher / core/hydra/cmd_sandbox/handlers.py
 """
 Hydra — Win CMD 沙箱：内置命令处理器
 

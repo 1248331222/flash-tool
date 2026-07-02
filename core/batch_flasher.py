@@ -1,4 +1,4 @@
-# flash_tool/core/batch_flasher.py
+# Skytree Flasher / core/batch_flasher.py
 # -*- coding: utf-8 -*-
 """
 core/batch_flasher.py — 批量线刷任务

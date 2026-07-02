@@ -1,4 +1,4 @@
-# flash_tool/core/device_info.py
+# Skytree Flasher / core/device_info.py
 # -*- coding: utf-8 -*-
 """
 core/device_info.py — 设备信息查询与操作（BL锁/槽位/重启/擦除/USB）

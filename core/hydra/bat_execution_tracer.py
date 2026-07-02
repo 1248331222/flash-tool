@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/bat_execution_tracer.py
+# Skytree Flasher / core/hydra/bat_execution_tracer.py
 """
 Hydra — BAT 轻量动态追踪器
 ===========================

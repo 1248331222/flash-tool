@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_public.py
+# Skytree Flasher / routes/api_public.py
 """公共目录路由 - 刷机包与镜像列表"""
 
 import os

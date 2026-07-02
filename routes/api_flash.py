@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_flash.py
+# Skytree Flasher / routes/api_flash.py
 """刷机核心路由 - 任务状态/刷写/预校验/镜像流"""
 
 import os

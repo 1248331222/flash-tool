@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/cmd_sandbox/result.py
+# Skytree Flasher / core/hydra/cmd_sandbox/result.py
 """
 Hydra — Win CMD 沙箱：命令执行结果类型
 """

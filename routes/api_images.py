@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_images.py
+# Skytree Flasher / routes/api_images.py
 """本地镜像路由 - 列表/删除/同步"""
 
 import os

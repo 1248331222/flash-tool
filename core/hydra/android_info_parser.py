@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/android_info_parser.py
+# Skytree Flasher / core/hydra/android_info_parser.py
 """
 Hydra — android-info.txt 解析器
 ================================

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/device.py
+# Skytree Flasher / core/device.py
 """
 core/device.py — 设备通信层（fastboot / adb 核心命令执行）
 从单文件版提取，函数逻辑保持不变。

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/cmd_sandbox/sandbox.py
+# Skytree Flasher / core/hydra/cmd_sandbox/sandbox.py
 """
 Hydra — Win CMD 沙箱主入口
 

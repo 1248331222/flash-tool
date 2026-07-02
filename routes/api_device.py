@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_device.py
+# Skytree Flasher / routes/api_device.py
 """设备路由 - 设备检测/ADB/Fastboot/环境检查"""
 
 import os

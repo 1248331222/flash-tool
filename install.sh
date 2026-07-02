@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Termux 网页刷机 - 管理脚本（部署/启动/停止/重启/备份/恢复）
+# 天树刷机 (Skytree Flasher) - 管理脚本（部署/启动/停止/重启/备份/恢复）
 # 使用方法：在 Termux 中执行以下命令即可（curl 是 Termux 自带的，无需额外安装）
 #
 #   bash <(curl -sL "http://81.68.84.205:5244/sd/flash_tool/install.sh")
@@ -84,7 +84,7 @@ banner() {
   printf "${GREEN}"
   cat <<'BANNER'
   ╔══════════════════════════════════════╗
-  ║     Termux 网页刷机 - 管理工具       ║
+  ║     天树刷机 (Skytree Flasher)       ║
   ╚══════════════════════════════════════╝
 BANNER
   printf "${NC}"

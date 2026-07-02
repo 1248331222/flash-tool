@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/cmd_sandbox/vfs.py
+# Skytree Flasher / core/hydra/cmd_sandbox/vfs.py
 """
 Hydra — Win CMD 沙箱：虚拟文件系统
 

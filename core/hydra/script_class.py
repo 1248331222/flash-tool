@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/script_class.py
+# Skytree Flasher / core/hydra/script_class.py
 """
 脚本分类数据类型定义
 ======================

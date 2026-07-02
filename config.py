@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/config.py
-"""配置模块 - 版本、路径、常量"""
+# Skytree Flasher / config.py
+"""天树刷机 - 配置模块 - 版本、路径、常量"""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ import logging
 TOOL_VERSION = "3.4.2"
 UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/@s/123456"
 UPDATE_ZIP_URL = f"{UPDATE_REMOTE_BASE}/flash_tool.zip"
-UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/main/config.py"
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/master/config.py"
 
 # ============ 路径配置 ============
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -100,7 +100,7 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
-    return logging.getLogger('flash_tool')
+    return logging.getLogger('skytree_flasher')
 
 logger = setup_logging()
 

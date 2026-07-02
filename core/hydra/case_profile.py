@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/hydra/case_profile.py
+# Skytree Flasher / core/hydra/case_profile.py
 """
 Hydra — Case Profile 适配器
 ============================

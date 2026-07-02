@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_usb.py
+# Skytree Flasher / routes/api_usb.py
 """USB 设备路由 - 列表与授权"""
 
 from flask import Blueprint, request, jsonify

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# flash_tool/core/step_engine.py
+# Skytree Flasher / core/step_engine.py
 """
 core/step_engine.py — 步骤校验、顺序优化、COW 查询、时间估算、预览命令生成
 从单文件版提取，函数逻辑保持不变。

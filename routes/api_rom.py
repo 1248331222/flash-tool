@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# flash_tool/routes/api_rom.py
+# Skytree Flasher / routes/api_rom.py
 """ROM 管理路由 - 列表/删除/解压/镜像/脚本导入"""
 
 import os
