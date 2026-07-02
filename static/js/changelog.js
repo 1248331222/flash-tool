@@ -1,7 +1,16 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.4.1 (2026-07-01)
+const CHANGELOG_TEXT = `v3.4.3 (2026-07-02)
+- 新增：独立「版本」页面（导航栏新增竖排版本按钮，宽度减半）
+- 新增：版本页可折叠更新日志（当前版本默认展开）
+- 修复：刷机包目录无法扫描的问题（清理残留的proot容器进程，释放端口冲突）
+- 前端：导航栏从4项扩展为5项（设备→线刷→版本→工具→工作台）
+- 优化：设备页移除版本/更新/更新日志区域，改为后端地址行
+- 优化：服务器支持 --lan 参数监听 0.0.0.0（局域网访问）
+- 优化：app.py 新增 /static/ 静态文件路由
+
+v3.4.1 (2026-07-01)
 - 新增：脚本上传功能（WebDAV→OpenList + 天树引擎预解析 + 安全扫描）
 - 新增：底部悬浮「📤」上传按钮
 - 前端：底部导航栏精简为 4 项
@@ -314,8 +323,53 @@ v1.0.0 (2026-06-20)
 - 支持 VBmeta 校验关闭、Bootloader 锁管理
 - 支持断点续刷、自动重连`;
 
-// 页面加载后填充更新日志
-(function() {
-    const el = document.getElementById('changelogContent');
-    if (el) el.textContent = CHANGELOG_TEXT;
-})();
+// 解析更新日志为结构化版本列表
+function parseChangelog(text) {
+    const versions = [];
+    const lines = text.split('\n');
+    let current = null;
+    for (const line of lines) {
+        const m = line.match(/^(v[\d.]+) \((\d{4}-\d{2}-\d{2})\)$/);
+        if (m) {
+            current = { version: m[1], date: m[2], lines: [] };
+            versions.push(current);
+        } else if (current) {
+            current.lines.push(line);
+        }
+    }
+    return versions;
+}
+
+// 可折叠版本日志渲染
+function renderChangelog(containerId, currentVersion) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const versions = parseChangelog(CHANGELOG_TEXT);
+    let html = '';
+    for (const ver of versions) {
+        const isCurrent = ver.version === 'v' + currentVersion;
+        const bodyId = 'ver-body-' + ver.version.replace(/\./g, '-');
+        const isOpen = isCurrent;
+        html += '<div class="ver-item' + (isCurrent ? ' ver-current' : '') + '">';
+        html += '<div class="ver-header" onclick="toggleVerBody(\'' + bodyId + '\')">';
+        html += '<span>' + escHtml(ver.version) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px">' + escHtml(ver.date) + '</span></span>';
+        if (isCurrent) html += '<span style="font-size:10px;color:var(--accent-green);font-weight:400;margin-right:6px">当前</span>';
+        html += '<span class="ver-arrow' + (isOpen ? ' open' : '') + '">▸</span>';
+        html += '</div>';
+        html += '<div class="ver-body' + (isOpen ? ' open' : '') + '" id="' + bodyId + '">';
+        html += ver.lines.join('\n');
+        html += '</div></div>';
+    }
+    container.innerHTML = html;
+}
+
+function toggleVerBody(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('open');
+    const header = el.previousElementSibling;
+    if (header) {
+        const arrow = header.querySelector('.ver-arrow');
+        if (arrow) arrow.classList.toggle('open');
+    }
+}
