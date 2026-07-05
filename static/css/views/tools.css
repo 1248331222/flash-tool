@@ -1,0 +1,22 @@
+/* ============ 视图 - 工具箱 ============ */
+.mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:10px 0; }
+.mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:12px; box-shadow:var(--card-shadow); }
+.mode-card h4 { font-size:14px; color:var(--accent-blue); margin-bottom:6px; font-weight:600; }
+.mode-card p { font-size:12px; color:var(--text-secondary); line-height:1.6; }
+.mode-card .mode-tag { display:inline-block; margin-top:8px; font-size:11px; color:var(--accent-green); background:rgba(48,209,88,0.1); border:none; border-radius:999px; padding:3px 8px; }
+.tool-group { border:none; border-radius:12px; padding:8px; margin:8px 0; background:var(--card-bg); box-shadow:var(--card-shadow); }
+.tool-group h3 { margin-top:0; }
+.tool-group.danger { background:rgba(255,69,58,0.06); }
+.tool-group.warn { background:rgba(255,159,10,0.06); }
+.reboot-top-row { display:grid; grid-template-columns:1fr 82px 82px; gap:7px; align-items:center; margin-bottom:7px; }
+.reboot-top-row h3 { margin:0!important; white-space:nowrap; }
+.reboot-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.reboot-row .btn { width:100%; min-width:0; padding-left:4px; padding-right:4px; }
+.slot-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.slot-title-row h3 { margin:0; }
+.slot-current-badge { font-size:12px; color:var(--accent-green); border:none; background:rgba(48,209,88,0.12); border-radius:999px; padding:3px 8px; white-space:nowrap; }
+.bl-status-badge { font-size:12px; border:none; background:var(--bg-tertiary); border-radius:999px; padding:3px 8px; white-space:nowrap; color:var(--text-secondary); }
+.bl-status-badge.ok { color:var(--accent-green); background:rgba(48,209,88,0.12); }
+.bl-status-badge.warn { color:var(--accent-orange); background:rgba(255,159,10,0.12); }
+.button-hint { font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+.empty-state { border:none; border-radius:12px; padding:16px 12px; text-align:center; color:var(--text-muted); font-size:12px; line-height:1.45; background:var(--bg-tertiary); }
