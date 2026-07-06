@@ -1,7 +1,22 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.8.0 (2026-07-05)
+const CHANGELOG_TEXT = `v3.8.5 (2026-07-06)
+- 重构：BAT 沙箱作为所有 BAT 子管线私有引擎（每个管线独立的 bat_sandbox 副本）
+- 重构：SH 解析器作为所有 SH 子管线私有引擎（每个管线独立的 sh_parser 副本）
+- 新增：BAT 沙箱防调用策略（公共基类模板禁止实例化，必须通过子管线私有副本）
+- 新增：SH 解析器防调用策略（公共基类模板禁止实例化，必须通过子管线私有副本）
+- 新增：ScriptClassifier 支持 BAT 脚本 9 种特征分类（interactive/for_loop/conditional 等）
+- 新增：顺序抉择选择器（抉择线路.bat 分步弹窗，每步只显示当前选项）
+- 新增：真实 BAT 脚本沙箱验证（84步/56步/181步与脚本原始命令完全一致）
+- 新增：通配符 FOR 循环展开（有真实镜像文件时正确展开所有 .img）
+- 修复：parse_interactive 返回完整的步骤列表（包含前置步骤如设备检测）
+- 修复：reboot/set_active/oem/adb 字段统一映射到 part（"重启到 bootloader"正确显示）
+- 修复：delete-logical-partition COW 清理被正确识别
+- 修复：交互式脚本选择完成后步骤列表与后端执行完全一致
+- 优化：HydraEngine.parse() 通过管线注册表调用子管线，不再直接实例化公共模板
+
+v3.8.0 (2026-07-05)
 - 新增：纯 Python SH 脚本模拟执行器（ShSimulator），替代系统 shell 沙箱，完全脱离 Termux 依赖
 - 新增：解析方式标识 —— 前端显示🔍沙箱(纯Python) 或 🔍静态提取
 - 新增：SH/BAT 管线拆分 —— 每个 class 拥有独立管线副本可魔改（native/vendor/community 等）

@@ -30,10 +30,21 @@ _RE_CONVERTED = re.compile(
     re.IGNORECASE,
 )
 
+# BAT 脚本特征检测正则
+_RE_BAT_INTERACTIVE = re.compile(r'\bset\s+/p\b', re.IGNORECASE)
+_RE_BAT_GOTO = re.compile(r'\bgoto\b', re.IGNORECASE)
+_RE_BAT_FOR = re.compile(r'\bfor\s+%%\w+\s+in\b', re.IGNORECASE)
+_RE_BAT_CONDITIONAL = re.compile(r'\bif\s+(exist|not|errorlevel|\S+\s*==|/i)', re.IGNORECASE)
+_RE_BAT_DELAYED = re.compile(r'\bsetlocal\s+enabledelayedexpansion\b', re.IGNORECASE)
+_RE_BAT_DYNAMIC = re.compile(r'!\w+!', re.IGNORECASE)
+_RE_BAT_NESTED_FOR = re.compile(r'for\s+%%\w+\s+in\b.*\bfor\s+%%\w+\s+in\b', re.IGNORECASE)
+_RE_BAT_LABEL = re.compile(r'^:\w+', re.MULTILINE)
+
 
 class ScriptClassifier:
     """
     脚本分类器。
+    支持 BAT 和 SH 两种脚本的特征分类。
     """
 
     def classify(self, content: str = "",
@@ -45,7 +56,6 @@ class ScriptClassifier:
                 class_name="空内容",
             )
 
-        # SH 脚本自动选 Profile
         if script_type == "sh":
             profile = self._classify_sh(content)
             return ClassMatchResult(
@@ -54,11 +64,58 @@ class ScriptClassifier:
                 class_name=f"Sh 模板 ({profile})",
             )
 
+        if script_type == "bat":
+            profile = self._classify_bat(content)
+            return ClassMatchResult(
+                matched=True,
+                class_id=profile,
+                class_name=f"Bat 模板 ({profile})",
+            )
+
         return ClassMatchResult(
             matched=True,
             class_id="generic",
             class_name="普通模板",
         )
+
+    def _classify_bat(self, content: str) -> str:
+        """根据脚本特征推荐 BAT 管线"""
+        # 交互式脚本（set /p）→ interactive
+        if _RE_BAT_INTERACTIVE.search(content):
+            return "interactive"
+        
+        # 嵌套 FOR → nested_for
+        if _RE_BAT_NESTED_FOR.search(content):
+            return "nested_for"
+        
+        # 有 FOR 循环 → for_loop
+        if _RE_BAT_FOR.search(content):
+            return "for_loop"
+        
+        # 延迟展开 → delayed_expansion
+        if _RE_BAT_DELAYED.search(content):
+            return "delayed_expansion"
+        
+        # 动态变量（!VAR!）→ dynamic_var
+        if _RE_BAT_DYNAMIC.search(content):
+            return "dynamic_var"
+        
+        # 有 GOTO 标签跳转 → goto_label
+        if _RE_BAT_GOTO.search(content) and _RE_BAT_LABEL.search(content):
+            return "goto_label"
+        
+        # 有条件分支（if exist/if ==）→ conditional
+        if _RE_BAT_CONDITIONAL.search(content):
+            return "conditional"
+        
+        # 简单脚本（纯 fastboot 命令）→ simple
+        fastboot_cmds = re.findall(r'^\s*(?:".*?\\fastboot\.exe"|fastboot)\s+', content, re.MULTILINE)
+        if fastboot_cmds:
+            if len(fastboot_cmds) <= 3:
+                return "simple"
+            return "plain"
+        
+        return "plain"
 
     def _classify_sh(self, content: str) -> str:
         """根据脚本特征推荐 SH Profile"""

@@ -6,8 +6,8 @@ community类脚本管线
 从 sh 基础管线复制并独立维护，可按需魔改。
 原始模板: core/hydra/pipelines/sh/pipeline.py
 """
-from core.hydra.sh_parser import ShEngine
-from core.hydra.sh_parser.types import ShParseMode
+from .sh_parser import ShEngine
+from .sh_parser.types import ShParseMode
 
 
 class CommunityPipeline:

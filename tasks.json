@@ -1,0 +1,62 @@
+{
+  "0ffc3f6a": {
+    "type": "extract",
+    "status": "success",
+    "progress": 100,
+    "logs": [
+      "开始解压：交互.zip",
+      "ZIP解压完成",
+      "解压完成"
+    ],
+    "error": "",
+    "created_at": 1783284609.347826,
+    "updated_at": 1783284609.5733297,
+    "src_path": "/storage/emulated/0/123456/交互.zip",
+    "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/交互"
+  },
+  "462d7351": {
+    "type": "extract",
+    "status": "success",
+    "progress": 100,
+    "logs": [
+      "开始解压：交互.zip",
+      "ZIP解压完成",
+      "解压完成"
+    ],
+    "error": "",
+    "created_at": 1783287327.4831486,
+    "updated_at": 1783287327.6688085,
+    "src_path": "/storage/emulated/0/123456/交互.zip",
+    "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/交互"
+  },
+  "3e4d56d6": {
+    "type": "extract",
+    "status": "success",
+    "progress": 100,
+    "logs": [
+      "开始解压：分支点.zip",
+      "ZIP解压完成",
+      "解压完成"
+    ],
+    "error": "",
+    "created_at": 1783292625.1343536,
+    "updated_at": 1783292625.3025365,
+    "src_path": "/storage/emulated/0/123456/分支点.zip",
+    "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/分支点"
+  },
+  "68b630dc": {
+    "type": "extract",
+    "status": "success",
+    "progress": 100,
+    "logs": [
+      "开始解压：抉择线路.zip",
+      "ZIP解压完成",
+      "解压完成"
+    ],
+    "error": "",
+    "created_at": 1783295299.8557577,
+    "updated_at": 1783295300.1188333,
+    "src_path": "/storage/emulated/0/123456/抉择线路.zip",
+    "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/抉择线路"
+  }
+}

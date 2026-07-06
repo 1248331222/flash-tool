@@ -228,10 +228,75 @@ def import_bat_file():
             "hydra_summary": hydra_summary,
             "parse_method": parse_method,
             "class_id": getattr(hydra_result, 'class_id', ''),
+            "pending_choices": getattr(hydra_result, 'pending_choices', []),
         }
         return jsonify(resp)
     except Exception as e:
         logger.error(f"导入BAT脚本失败: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+
+@rom_bp.route('/parse_interactive', methods=['POST'])
+def parse_interactive_branch():
+    """
+    交互式脚本：用户选择分支后重新解析，返回该分支的精确步骤。
+
+    前端流程：
+        1. 调 import_bat → 返回 pending_choices（分支选项列表）
+        2. 用户选分支 → 调此接口传 user_choices
+        3. 返回该分支过滤去重后的核心步骤
+
+    Request JSON:
+        content: 脚本文本内容 （必填）
+        user_choices: 用户选择的分支值字典，如 {"mode": "1"} （必填）
+        rom_dir: ROM 包根目录 （可选）
+        script_path: 脚本文件完整路径 （可选）
+
+    Returns:
+        steps: 该分支下的核心步骤
+        step_count: 步骤数
+        class_id: 标识信息
+    """
+    data = request.get_json(silent=True) or {}
+    content = data.get("content", "")
+    user_choices = data.get("user_choices", {})
+    rom_dir = data.get("rom_dir", "")
+    script_path = data.get("script_path", "")
+    
+    if not content or not user_choices:
+        return jsonify({"success": False, "error": "参数不完整，需要 content 和 user_choices"})
+    
+    from core.hydra import get_hydra_engine
+    engine = get_hydra_engine()
+    
+    try:
+        result = engine.parse_interactive(
+            content=content,
+            user_choices=user_choices,
+            rom_dir=rom_dir,
+            script_path=script_path,
+        )
+        # 转换为前端兼容格式
+        steps = [
+            {
+                "type": s.type,
+                "part": s.part,
+                "fileName": s.fileName,
+                "params": s.params,
+                "raw": s.raw,
+                "risk": s.risk,
+            }
+            for s in result.steps
+        ]
+        return jsonify({
+            "success": True,
+            "steps": steps,
+            "step_count": len(steps),
+            "class_id": result.class_id,
+        })
+    except Exception as e:
+        logger.error(f"parse_interactive 失败: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -275,6 +340,7 @@ def import_script_by_path():
             "hydra_summary": hydra_summary,
             "parse_method": parse_method,
             "class_id": getattr(hydra_result, 'class_id', ''),
+            "pending_choices": getattr(hydra_result, 'pending_choices', []),
         }
         return jsonify(resp)
     except Exception as e:

@@ -1,0 +1,342 @@
+// flash_tool/static/js/interactive_selector.js
+// ============ 交互式脚本【逐层选择器】 ============
+//
+// 每次弹窗只展示当前层级需要用户抉择的选项。
+// 选了→点下一步→自动处理下一层(auto_select)→遇到needs_choice=true再弹窗。
+// 直到所有层级处理完，调onComplete传出所有选择。
+//
+// pending_choices 树形结构:
+//   [{value, label, description, step_count, needs_choice, auto_select, children}, ...]
+//
+// 规则:
+//   needs_choice=false + auto_select非空 → 自动选，不弹窗
+//   needs_choice=true → 弹窗让用户选
+//   选完后，检查该选项的children，继续按规则处理
+// ============================================================
+
+var interactiveSelector = (function() {
+    'use strict';
+    
+    var _allChoices = {};       // 用户所有选择 {key: value}
+    var _onComplete = null;     // 全部选完回调
+    var _onCancel = null;       // 取消回调
+    var _selected = null;       // 当前弹窗中用户选中的选项
+    var _overlay = null;
+    var _dialog = null;
+    var _timer = null;
+    
+    // ==================== 核心递归处理 ====================
+    
+    /**
+     * 处理一组选项，决定直接弹窗还是自动走
+     * @param {Array} items - 当前层级的选项列表
+     * @param {string} title - 弹窗标题
+     * @param {string} desc - 弹窗描述
+     * @param {boolean} isLast - 是否是最后一步
+     */
+    function _processItems(items, title, desc, isLast) {
+        if (!items || items.length === 0) {
+            // 没有选项了 → 完成
+            _finish();
+            return;
+        }
+        
+        // 收集 needs_choice=true 的需要弹窗
+        var needChoice = items.filter(function(x) { return x.needs_choice === true; });
+        
+        // 全部是 auto_select → 自动走，不弹窗
+        if (needChoice.length === 0) {
+            items.forEach(function(item) {
+                _applyAuto(item);
+            });
+            return;
+        }
+        
+        // 有需要选择的 → 弹窗，只显示 needChoice 的项
+        // auto_select 的项不展示，自动处理
+        items.forEach(function(item) {
+            if (item.needs_choice !== true) {
+                _applyAuto(item);
+            }
+        });
+        
+        _showDialog(needChoice, title || '请选择', desc || '', isLast);
+    }
+    
+    /**
+     * 自动处理一个 auto_select 项
+     */
+    function _applyAuto(item) {
+        // 记录主选择
+        _recordChoice(item.value);
+        
+        // 如果有 auto_select，记录并找到对应子项继续
+        if (item.auto_select && item.auto_select.length > 0) {
+            _recordChoice(item.auto_select);
+            
+            // 找到 auto_select 对应的子项
+            var matched = null;
+            (item.children || []).forEach(function(c) {
+                if (c.value === item.auto_select) matched = c;
+            });
+            if (matched) {
+                // 递归处理该子项的 children
+                _stepIntoChildren(matched);
+            }
+        } else {
+            // 没有 auto_select，但有 children → 进入子级
+            _stepIntoItem(item);
+        }
+    }
+    
+    /**
+     * 进入一个选项的子级继续处理
+     */
+    function _stepIntoChildren(item) {
+        if (item && item.children && item.children.length > 0) {
+            // 递归处理子级
+            var childTitle = item.label || item.value || '';
+            var childDesc = item.description || '';
+            _processItems(item.children, childTitle, childDesc, false);
+        } else {
+            // 没有子级 → 看同级还有没有其他未处理的
+            // 实际上这里需要回到父级层面继续，但我们在 _processItems 中已经
+            // 一次处理完了所有同级选项，所以这里直接检查是否全部处理完
+            _checkDone();
+        }
+    }
+    
+    /**
+     * 进入一个被用户选中的选项的子级
+     */
+    function _stepIntoItem(item) {
+        if (item && item.children && item.children.length > 0) {
+            _processItems(item.children, item.label || item.value || '', item.description || '', false);
+        } else {
+            _checkDone();
+        }
+    }
+    
+    /**
+     * 检查是否所有选择已完成
+     */
+    function _checkDone() {
+        _cleanup();
+        if (_onComplete) _onComplete(_allChoices);
+        _reset();
+    }
+    
+    /**
+     * 记录一个 value 到选择字典
+     */
+    function _recordChoice(value) {
+        if (!value) return;
+        var eqIdx = value.indexOf('=');
+        if (eqIdx > 0) {
+            var key = value.substring(0, eqIdx).trim();
+            var val = value.substring(eqIdx + 1).trim();
+            _allChoices[key] = val;
+        }
+    }
+    
+    // ==================== 弹窗渲染 ====================
+    
+    function _showDialog(options, title, desc, isLast) {
+        _selected = null;
+        
+        // 遮罩
+        if (!_overlay) {
+            _overlay = document.createElement('div');
+            _overlay.className = 'modal-overlay';
+            _overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+            document.body.appendChild(_overlay);
+        }
+        
+        // 对话框
+        if (_dialog) { try { _overlay.removeChild(_dialog); } catch(e) {} }
+        _dialog = document.createElement('div');
+        _dialog.className = 'modal-dialog';
+        _dialog.style.cssText = 'background:var(--bg-card,#1e1e2e);border-radius:12px;padding:20px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.4);display:flex;flex-direction:column;max-height:85vh;';
+        
+        // 标题
+        var h = document.createElement('h3');
+        h.textContent = title || '请选择';
+        h.style.cssText = 'margin:0 0 4px 0;font-size:16px;color:var(--text-primary,#e0e0e0);';
+        _dialog.appendChild(h);
+        
+        // 描述
+        if (desc) {
+            var d = document.createElement('p');
+            d.textContent = desc;
+            d.style.cssText = 'margin:0 0 14px 0;font-size:13px;color:var(--text-muted,#999);line-height:1.4;';
+            _dialog.appendChild(d);
+        }
+        
+        // 选项区（可滚动）
+        var optArea = document.createElement('div');
+        optArea.style.cssText = 'flex:1;overflow-y:auto;min-height:0;';
+        
+        options.forEach(function(opt) {
+            var item = document.createElement('div');
+            item.className = 'interactive-option';
+            item.style.cssText = 'display:flex;align-items:center;padding:10px 12px;margin-bottom:6px;border:1px solid var(--border-color,#333);border-radius:8px;background:var(--bg-input,#2a2a3e);cursor:pointer;transition:all 0.15s;';
+            
+            // 圆圈勾选
+            var circle = document.createElement('span');
+            circle.style.cssText = 'width:20px;height:20px;border-radius:50%;border:2px solid var(--text-muted,#555);display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;font-size:12px;color:transparent;transition:all 0.15s;';
+            circle.textContent = '✓';
+            item.appendChild(circle);
+            
+            // 文本区
+            var txt = document.createElement('div');
+            txt.style.cssText = 'flex:1;min-width:0;';
+            
+            var label = document.createElement('div');
+            label.style.cssText = 'font-weight:500;color:var(--accent-green,#4CAF50);font-size:13px;';
+            label.textContent = opt.label || opt.value || '';
+            txt.appendChild(label);
+            
+            if (opt.description) {
+                var desc2 = document.createElement('div');
+                desc2.style.cssText = 'font-size:11px;color:var(--text-muted,#999);margin-top:2px;';
+                desc2.textContent = opt.description;
+                txt.appendChild(desc2);
+            }
+            if (opt.step_count !== undefined && opt.step_count > 0) {
+                var cnt = document.createElement('div');
+                cnt.style.cssText = 'font-size:10px;color:var(--text-muted,#666);margin-top:2px;';
+                cnt.textContent = '预估 ' + opt.step_count + ' 步';
+                txt.appendChild(cnt);
+            }
+            item.appendChild(txt);
+            
+            // hover
+            item.onmouseenter = function() {
+                if (this.dataset.selected !== 'true') {
+                    this.style.borderColor = 'var(--accent-green,#4CAF50)';
+                    this.style.background = 'rgba(76,175,80,0.08)';
+                }
+            };
+            item.onmouseleave = function() {
+                if (this.dataset.selected !== 'true') {
+                    this.style.borderColor = 'var(--border-color,#333)';
+                    this.style.background = 'var(--bg-input,#2a2a3e)';
+                }
+            };
+            
+            // 点击选中
+            item.onclick = function() {
+                _dialog.querySelectorAll('.interactive-option').forEach(function(el) {
+                    el.dataset.selected = 'false';
+                    el.style.borderColor = 'var(--border-color,#333)';
+                    el.style.background = 'var(--bg-input,#2a2a3e)';
+                    var c = el.querySelector('span:first-child');
+                    if (c) { c.style.borderColor = 'var(--text-muted,#555)'; c.style.color = 'transparent'; c.style.background = 'transparent'; }
+                });
+                this.dataset.selected = 'true';
+                this.style.borderColor = 'var(--accent-green,#4CAF50)';
+                this.style.background = 'rgba(76,175,80,0.15)';
+                circle.style.borderColor = 'var(--accent-green,#4CAF50)';
+                circle.style.color = '#fff';
+                circle.style.background = 'var(--accent-green,#4CAF50)';
+                _selected = opt;
+            };
+            
+            optArea.appendChild(item);
+        });
+        
+        _dialog.appendChild(optArea);
+        
+        // 底部按钮（固定）
+        var bottomRow = document.createElement('div');
+        bottomRow.style.cssText = 'display:flex;gap:8px;margin-top:10px;flex-shrink:0;';
+        
+        var cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '取消';
+        cancelBtn.style.cssText = 'padding:8px 14px;border:1px solid var(--border-color,#333);border-radius:8px;background:transparent;color:var(--text-muted,#999);font-size:12px;cursor:pointer;';
+        cancelBtn.onmouseenter = function() { this.style.color = 'var(--text-primary,#e0e0e0)'; };
+        cancelBtn.onmouseleave = function() { this.style.color = 'var(--text-muted,#999)'; };
+        cancelBtn.onclick = function() { _doCancel(); };
+        bottomRow.appendChild(cancelBtn);
+        
+        var nextBtn = document.createElement('button');
+        nextBtn.textContent = isLast ? '确定' : '下一步';
+        nextBtn.style.cssText = 'flex:1;padding:10px;border:none;border-radius:8px;background:var(--accent-green,#4CAF50);color:#fff;font-size:13px;font-weight:500;cursor:pointer;opacity:0.5;';
+        nextBtn.disabled = true;
+        
+        // 定时器监控选中状态
+        if (_timer) clearInterval(_timer);
+        _timer = setInterval(function() {
+            if (_selected) {
+                nextBtn.style.opacity = '1';
+                nextBtn.disabled = false;
+            } else {
+                nextBtn.style.opacity = '0.5';
+                nextBtn.disabled = true;
+            }
+        }, 200);
+        
+        nextBtn.onclick = function() {
+            if (!_selected) return;
+            if (_timer) clearInterval(_timer);
+            _timer = null;
+            
+            // 记录用户选择
+            _recordChoice(_selected.value);
+            
+            // 关闭当前弹窗，进入子级
+            _cleanup();
+            _stepIntoItem(_selected);
+        };
+        bottomRow.appendChild(nextBtn);
+        
+        _dialog.appendChild(bottomRow);
+        _overlay.appendChild(_dialog);
+    }
+    
+    function _finish() {
+        _cleanup();
+        if (_onComplete) _onComplete(_allChoices);
+        _reset();
+    }
+    
+    function _doCancel() {
+        _cleanup();
+        if (_onCancel) _onCancel();
+        _reset();
+    }
+    
+    function _cleanup() {
+        if (_timer) { clearInterval(_timer); _timer = null; }
+        if (_dialog && _overlay) { try { _overlay.removeChild(_dialog); } catch(e) {} _dialog = null; }
+        if (_overlay) { try { document.body.removeChild(_overlay); } catch(e) {} _overlay = null; }
+    }
+    
+    function _reset() {
+        _allChoices = {};
+        _onComplete = null;
+        _onCancel = null;
+        _selected = null;
+        if (_timer) { clearInterval(_timer); _timer = null; }
+        _overlay = null;
+        _dialog = null;
+    }
+    
+    // ==================== 公开 API ====================
+    
+    return {
+        show: function(choices, callbacks) {
+            _reset();
+            if (!choices || choices.length === 0) {
+                if (callbacks && callbacks.onComplete) callbacks.onComplete({});
+                return;
+            }
+            _onComplete = callbacks.onComplete || null;
+            _onCancel = callbacks.onCancel || null;
+            
+            // 从第一级开始处理
+            _processItems(choices, '选择刷机模式', '检测到交互式刷机脚本，请选择要执行的操作：', false);
+        },
+        destroy: function() { _reset(); }
+    };
+})();
