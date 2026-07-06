@@ -1,0 +1,19 @@
+{
+    "product": "umi",
+    "anti": "0",
+    "current-slot": "_a",
+    "max-download-size": "268435456",
+    "unlocked": "yes",
+    "secure": "yes",
+    "serialno": "SKYTREE_MOCK_0001",
+    "version": "0.4",
+    "battery-voltage": "4300",
+    "slot-count": "2",
+    "slot-suffixes": "_a,_b",
+    "has-slot:boot": "yes",
+    "has-slot:system": "yes",
+    "has-slot:vendor": "yes",
+    "is-userspace": "no",
+    "token": "${DECISION:getvar_token}",
+    "hw-version": "${DECISION:getvar_hw_version}"
+}
