@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>天树刷机 (Skytree Flasher)</title>
+<title>天树刷机 3.9 (单文件版)</title>
 
 <!-- 错误边界（不修改原版任何功能，只加保护） -->
 <script>
@@ -23,725 +23,13 @@ window.addEventListener('unhandledrejection', function(e) {
   e.preventDefault();
 });
 </script>
-
-
-
-
-
-
-<style>/* ============ 基础变量与全局 ============ */
-:root{
-    --accent-blue:#0a84ff;
-    --accent-green:#30d158;
-    --accent-orange:#ff9f0a;
-    --accent-red:#ff453a;
-    --accent-purple:#af52de;
-    --bg-primary:#000;
-    --bg-secondary:#121212;
-    --bg-tertiary:#1c1c1e;
-    --bg-card:rgba(28,28,30,.7);
-    --card-bg:rgba(28,28,30,.85);
-    --card-shadow:0 4px 20px rgba(0,0,0,.3);
-    --text-primary:#fff;
-    --text-secondary:#98989d;
-    --text-muted:#636366;
-    --separator:rgba(84,84,88,.4);
-    --rule:rgba(84,84,88,.5);
-    --border-color:rgba(84,84,88,.4);
-    --input-bg:rgba(44,44,46,.8);
-    --input-border:rgba(84,84,88,.5);
-    --input-focus-ring:rgba(10,132,255,.25);
-    --frosted-bg:rgba(28,28,30,.6);
-    --frosted-filter:blur(12px);
-}
-[data-theme="light"]{
-    --bg-primary:#f2f2f7;
-    --bg-secondary:#fff;
-    --bg-tertiary:#e5e5ea;
-    --bg-card:rgba(255,255,255,.7);
-    --card-bg:rgba(255,255,255,.9);
-    --card-shadow:0 4px 20px rgba(0,0,0,.08);
-    --text-primary:#000;
-    --text-secondary:#3a3a3c;
-    --text-muted:#8e8e93;
-    --separator:rgba(60,60,67,.2);
-    --rule:rgba(60,60,67,.25);
-    --border-color:rgba(60,60,67,.2);
-    --input-bg:#fff;
-    --input-border:rgba(60,60,67,.25);
-    --input-focus-ring:rgba(0,122,255,.2);
-    --frosted-bg:rgba(255,255,255,.6);
-    --frosted-filter:blur(12px);
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-    margin:0;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
-    background:var(--bg-primary);
-    color:var(--text-primary);
-    display:flex;
-    flex-direction:column;
-    min-height:100vh;
-    transition:background .3s,color .3s;
-    padding:56px 12px calc(78px + env(safe-area-inset-bottom));
-}
-
-/* ============ 顶部标题 ============ */
-.app-header{
-    position:fixed;
-    top:0;
-    left:0;
-    right:0;
-    z-index:50;
-    padding:12px 16px;
-    background:var(--frosted-bg);
-    backdrop-filter:var(--frosted-filter);
-    -webkit-backdrop-filter:var(--frosted-filter);
-    border-bottom:1px solid var(--separator);
-}
-.app-header h1{
-    margin:0;
-    font-size:18px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-.badge{
-    font-size:11px;
-    padding:2px 8px;
-    border-radius:999px;
-    background:var(--accent-blue);
-    color:#fff;
-    font-weight:600;
-}
-
-/* ============ 视图切换 ============ */
-.view-container{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;max-width:800px;width:100%;margin:0 auto;padding-top:8px}
-.app-view{display:none;animation:fadeIn .25s ease}
-.app-view.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-
-/* ============ 卡片/面板 ============ */
-.panel{
-    background:var(--card-bg);
-    border-radius:16px;
-    padding:14px;
-    margin-bottom:12px;
-    box-shadow:var(--card-shadow);
-    border:1px solid var(--separator);
-}
-h2,h3{margin:0 0 10px;font-size:15px}
-h3{font-size:14px}
-
-/* ============ 智能提示卡片 ============ */
-.smart-card{
-    background:linear-gradient(135deg,rgba(10,132,255,.15),rgba(175,82,222,.12));
-    border-left:4px solid var(--accent-blue);
-    border-radius:12px;
-    padding:12px 14px;
-    margin-bottom:12px;
-    font-size:13px;
-}
-.smart-card p{margin:0 0 8px;line-height:1.5}
-.smart-actions{display:flex;gap:8px;flex-wrap:wrap}
-
-/* ============ 环境状态条 ============ */
-.env-status{
-    position:fixed;
-    top:52px;
-    left:12px;
-    right:12px;
-    z-index:40;
-    font-size:12px;
-    padding:8px 12px;
-    border-radius:10px;
-    text-align:center;
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
-}
-.env-status.success{background:rgba(48,209,88,.14);color:var(--accent-green);border:1px solid rgba(48,209,88,.25)}
-.env-status.error{background:rgba(255,69,58,.14);color:var(--accent-red);border:1px solid rgba(255,69,58,.25)}
-.env-status.warn{background:rgba(255,159,10,.14);color:var(--accent-orange);border:1px solid rgba(255,159,10,.25)}
-
-/* ============ 底部导航 ============ */
-.bottom-nav{
-    position:fixed;
-    bottom:max(12px,env(safe-area-inset-bottom));
-    left:12px;
-    right:12px;
-    display:grid;
-    grid-template-columns:1fr 1fr .6fr 1fr 1fr;
-    gap:6px;
-    padding:10px;
-    background:var(--frosted-bg);
-    backdrop-filter:var(--frosted-filter);
-    -webkit-backdrop-filter:var(--frosted-filter);
-    border-radius:20px;
-    box-shadow:0 4px 20px rgba(0,0,0,.2);
-    z-index:100;
-    border:1px solid var(--separator);
-}
-.nav-item{
-    background:none;
-    border:none;
-    color:var(--text-secondary);
-    font-size:12px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:2px;
-    padding:8px 4px;
-    border-radius:14px;
-    cursor:pointer;
-    transition:background .2s,color .2s;
-}
-.nav-item.active{color:var(--accent-blue);background:rgba(10,132,255,.12)}
-.nav-item span{font-size:20px;line-height:1}
-.nav-version{letter-spacing:2px}
-.nav-version .version-char{display:inline-block;font-size:12px}
-
-/* ============ 按钮 ============ */
-.btn{background:var(--accent-blue);border:none;color:white;padding:9px 14px;border-radius:12px;cursor:pointer;margin:3px 2px;font-size:14px;min-height:44px;transition:opacity 0.2s,transform 0.15s cubic-bezier(0.25,0.46,0.45,0.94);font-weight:600}
-.btn:hover{opacity:0.85}
-.btn:active{transform:scale(0.97)}
-.btn.warn{background:var(--accent-orange)}
-.btn.danger{background:var(--accent-red)}
-.btn.secondary{background:var(--bg-tertiary);color:var(--text-primary);border:none}
-.btn.small{padding:5px 10px;font-size:12px;min-height:36px}
-.btn:disabled{background:var(--text-muted);cursor:not-allowed;opacity:0.6;transform:none;filter:saturate(.7)}
-[data-theme="light"] .btn:disabled{background:#c7c7cc;color:#aeaeb2;opacity:1}
-
-/* ============ 输入框 ============ */
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
-input[type="text"],select{background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);padding:9px 11px;border-radius:10px;outline:none;font-size:14px;min-height:44px;transition:border-color 0.2s,box-shadow 0.2s;color-scheme:dark}
-input[type="text"]:focus,select:focus{border-color:var(--accent-blue);box-shadow:0 0 0 3px var(--input-focus-ring)}
-select option{background:var(--input-bg);color:var(--text-primary)}
-
-.tip{color:var(--text-muted);font-size:12px;margin-top:6px;line-height:1.5}
-.divider{height:1px;background:var(--separator);margin:16px 0}
-.danger-text{color:var(--accent-red)}
-.status-badge{font-size:11px;padding:3px 8px;border-radius:6px;background:var(--bg-tertiary);color:var(--text-secondary)}
-
-/* ============ 帮助折叠 ============ */
-.help-toggle{font-size:12px;color:var(--accent-blue);cursor:pointer;user-select:none;font-weight:normal}
-.help-content{display:none;background:var(--card-bg);padding:12px;border-radius:12px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--text-secondary);box-shadow:var(--card-shadow)}
-.help-content ol{padding-left:20px;margin:0}
-.help-content li{margin-bottom:6px}
-.help-content.show{display:block}
-.help-content code{background:#000;color:var(--accent-green);padding:3px 8px;border-radius:8px;display:block;margin:6px 0;white-space:nowrap;overflow-x:auto}
-
-/* ============ 子区块 ============ */
-.sub-section{margin-top:12px;padding-top:12px;border-top:1px dashed var(--separator)}
-/* ============ 弹窗 ============ */
-.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:999;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.modal-mask.show{display:flex}
-.modal-box{background:var(--card-bg);border-radius:16px;padding:20px;max-width:400px;width:100%;max-height:80vh;display:flex;flex-direction:column;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
-.modal-content{overflow-y:auto;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.modal-title{font-size:16px;margin-bottom:12px;color:var(--text-primary);font-weight:600;display:flex;align-items:center}
-.modal-content{font-size:14px;line-height:1.6;color:var(--text-secondary);margin-bottom:16px;white-space:pre-line}
-.modal-actions{display:flex;gap:8px;justify-content:flex-end}
-
-/* ============ 主题切换按钮 ============ */
-.theme-toggle{position:fixed;top:12px;right:12px;width:40px;height:40px;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:none;border-radius:999px;padding:0;cursor:pointer;color:var(--text-primary);font-size:18px;z-index:100;transition:background 0.3s;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
-.theme-toggle:hover{background:var(--bg-tertiary)}
-
-/* ============ 上传悬浮按钮 ============ */
-.upload-fab{position:fixed;top:58px;right:12px;width:40px;height:40px;background:var(--accent-orange,#ff9f0a);border:none;border-radius:999px;padding:0;cursor:pointer;color:#fff;font-size:20px;z-index:100;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(255,159,10,0.3);transition:background 0.3s,transform 0.2s}
-.upload-fab:hover{background:#e08f09;transform:scale(1.1)}
-.upload-fab:active{transform:scale(0.95)}
-@media (max-width:600px){.upload-fab{top:54px;right:10px;width:38px;height:38px;font-size:18px}}
-
-/* ============ 上传对话框 ============ */
- .upload-dialog{max-width:480px;max-height:90vh;display:flex;flex-direction:column}
- .upload-body{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0 4px}
- .upload-file-row{display:flex;align-items:center;margin:4px 0}
-.upload-meta-row input{font-size:12px}
-.upload-result.success{background:rgba(48,209,88,0.1);color:var(--accent-green);border:1px solid rgba(48,209,88,0.2)}
-.upload-result.error{background:rgba(255,69,58,0.1);color:var(--accent-red);border:1px solid rgba(255,69,58,0.2)}
-.upload-history-section{border-top:1px solid var(--rule);margin-top:8px;padding-top:8px}
-.upload-history-title{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
-.upload-history-list{max-height:200px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.upload-history-item{padding:6px 8px;border-radius:6px;margin-bottom:4px;background:var(--bg-card,rgba(255,255,255,0.03))}
-.upload-history-item:hover{background:var(--bg-tertiary)}
-.upload-history-name{font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.upload-history-meta{display:flex;gap:8px;font-size:10px;color:var(--text-muted);margin-top:2px}
-.upload-history-type{background:rgba(255,159,10,0.18);color:var(--accent-orange);padding:0 5px;border-radius:3px;font-size:9px;font-weight:600}
-
-/* ============ 响应式 ============ */
-@media (max-width:600px){
-    body{padding:56px 10px calc(78px + env(safe-area-inset-bottom))}
-    .custom-row input,.custom-row select{flex:1;min-width:120px}
-    .mode-device-row{grid-template-columns:1fr}
-    .device-connect-row{justify-content:flex-start}
-    .btn{min-height:48px;font-size:15px}
-    h1{font-size:20px}
-    .theme-toggle{top:10px;right:10px;width:38px;height:38px;padding:0}
-    .report-grid{grid-template-columns:1fr}
-    .bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));grid-template-columns:1fr 1fr 0.5fr 1fr 1fr;gap:4px;padding:8px}
-    .nav-item{font-size:11px;padding:6px 4px}.nav-item span{font-size:16px}
-}
-/* ============ 上传弹窗品牌型号输入框 ============ */
-.upload-brand-row { display:flex; gap:8px; margin:8px 0; }
-.upload-brand-row input { flex:1; min-width:0; padding:10px 12px; border:2px solid var(--accent-orange); border-radius:10px; background:var(--input-bg); color:var(--text-primary); font-size:13px; outline:none; }
-.upload-brand-row input:focus { border-color:var(--accent-blue); box-shadow:0 0 0 3px var(--input-focus-ring); }
-.upload-brand-row input::placeholder { color:var(--text-muted); font-size:12px; }
-
-/* ============ 第二阶段新增工具类 ============ */
-
-/* 按钮颜色变体 */
-.btn-primary{background:var(--accent-blue,#409eff);color:#fff}
-.btn-success{background:var(--accent-green,#67c23a);color:#fff}
-.btn-purple{background:var(--accent-purple,#a855f7);color:#fff}
-.btn-primary:hover,.btn-success:hover,.btn-purple:hover{opacity:0.85}
-
-/* 区块标题 */
-.section-title{font-size:13px}
-
-/* 步骤计数 */
-.step-count{font-size:11px;color:var(--text-muted)}
-
-/* 工作台控制行 */
-.wb-control-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-
-/* 工作台预览操作行 */
-.wb-preview-actions{display:flex;gap:6px;margin-bottom:6px}
-
-/* 方案管理弹窗 */
-.scheme-panel-title{margin-top:0;font-size:15px}
-.scheme-panel-close{text-align:center;margin-top:12px}
-
-/* 上传弹窗关闭按钮 */
-.modal-close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#ff453a;margin-left:auto;padding:0 4px;line-height:1}
-
-/* 上传文件信息 */
-.upload-file-info{font-size:11px;color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.upload-select-btn{white-space:nowrap;flex-shrink:0}
-
-/* 上传刷新按钮 */
-.upload-refresh-btn{background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);font-size:11px;cursor:pointer;border-radius:4px;padding:2px 8px;line-height:1.4}
-
-/* 强调链接 */
-.accent-link{color:var(--accent-orange,#ff9f0a)}
-
-/* 复制源码按钮 */
-.btn-copy-source{font-size:11px;padding:3px 10px}
-
-/* 通用布局工具 */
-.mb-6{margin-bottom:6px}
-
-/* ROM 列表项 */
-.rom-item-body{display:flex;flex-direction:column;gap:2px;width:100%}
-.rom-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rom-item-meta{display:flex;align-items:center;gap:6px}
-.rom-type-badge{font-size:10px;padding:1px 5px;border-radius:3px;color:#fff}
-.rom-select-btn{font-size:11px;padding:2px 8px}
-.rom-select-btn.active{background:var(--accent-green);color:#fff;border-color:var(--accent-green)}
-
-/* 版本日志 */
-.ver-date{font-weight:400;color:var(--text-muted);font-size:12px}
-.ver-current-tag{font-size:10px;color:var(--accent-green);font-weight:400;margin-right:6px}
-
-/* 上传空提示 */
-.upload-empty-tip{text-align:center;padding:24px 12px;color:var(--text-muted);font-size:12px}
-
-/* 方案列表 */
-.scheme-empty-tip{text-align:center;color:var(--text-muted);padding:20px}
-.scheme-name{font-size:13px}
-.scheme-meta{font-size:11px;color:var(--text-muted)}
-
-/* 脚本查看器 */
-.script-viewer-box{background:#0d1117;border:1px solid #30363d;border-radius:12px;width:92%;max-width:680px;box-shadow:0 8px 32px rgba(0,0,0,0.4);margin:0 auto;color:#c9d1d9}
-.script-viewer-header{padding:12px 16px;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#161b22;border-radius:12px 12px 0 0;z-index:1}
-.script-viewer-title{font-size:14px;color:#c9d1d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85%}
-.script-viewer-close{background:none;border:none;font-size:18px;cursor:pointer;color:#8b949e;padding:0 6px;flex-shrink:0}
-.script-viewer-body{margin:0;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:#c9d1d9;background:#0d1117;max-height:65vh;overflow:auto}
-.code-line-num{display:inline-block;width:36px;text-align:right;color:#484f58;user-select:none;margin-right:10px;border-right:1px solid #21262d;padding-right:8px;font-size:11px}
-.code-comment{color:#8b949e}
-.code-var{color:#79c0ff}
-.code-var-orange{color:#ffa657}
-.code-string{color:#a5d6ff}
-.code-cmd{color:#3fb950;font-weight:bold}
-
-/* 上传 Toast */
-.upload-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#f5f5f7;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;max-width:80%;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.3s}
-
-/* ============ 从原始版本补回的缺失组件样式 ============ */
-
-
-h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-0.02em}
-
-@keyframes viewIn{from{opacity:.3;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-
-.nav-item:active{transform:scale(0.92);background:rgba(255,255,255,0.06)}
-
-.nav-item::after{content:'';position:absolute;right:-2px;top:25%;height:50%;width:1px;background:var(--separator)}
-
-.nav-item:last-child::after{display:none}
-
-.nav-item.active:active{background:rgba(48,209,88,0.1)}
-
-.nav-item.active::after{right:0}
-
-.nav-item.active::before{content:'';position:absolute;bottom:2px;left:20%;width:60%;height:2px;border-radius:1px;background:var(--accent-green)}
-
-.global-status{position:fixed;top:12px;left:12px;right:58px;z-index:100;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:none;color:var(--accent-green);border-radius:20px;padding:7px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:40px;box-shadow:0 2px 12px rgba(0,0,0,0.15);cursor:default}
-
-.global-status.collapsed{justify-content:flex-start;border-radius:20px}
-
-.global-status .global-status-compact{display:none}
-
-.global-status.collapsed .pulse-dot,.global-status.collapsed #globalStatusText{display:inline-block}
-
-.global-status.collapsed .global-status-compact{display:none}
-
-.global-status #globalStatusText{overflow:hidden;text-overflow:ellipsis}
-
-.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 0 0 rgba(48,209,88,0.5);animation:pulse 1.8s infinite}
-
-@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
-
-.smart-card,.task-summary{background:var(--card-bg);border:none;border-radius:12px;padding:16px;margin:10px 0;box-shadow:var(--card-shadow)}
-
-[data-theme="light"] .smart-card,[data-theme="light"] .task-summary{background:var(--card-bg);box-shadow:var(--card-shadow)}
-
-.smart-card h4,.task-summary h4{color:var(--accent-blue);font-size:14px;margin-bottom:6px;font-weight:600}
-
-.smart-card p,.task-summary p{color:var(--text-secondary);font-size:13px;line-height:1.5}
-
-.metric-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-
-.metric{background:var(--bg-tertiary);border:none;border-radius:999px;padding:5px 9px;font-size:12px;color:var(--text-secondary)}
-
-.compact-safety{padding:0;overflow:hidden}
-
-.compact-safety summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;color:var(--accent-green);font-size:13px;font-weight:700}
-
-.compact-safety summary::-webkit-details-marker{display:none}
-
-.compact-safety summary span:last-child{color:var(--text-secondary);font-size:12px;font-weight:600;text-align:right}
-
-.compact-detail{border-top:1px solid var(--separator);padding:10px 12px}
-
-.compact-detail h4{margin-top:8px}
-
-.compact-detail>div:first-child h4{margin-top:0}
-
-.step-list.collapsed{display:none}
-
-.report-card{border:none;border-radius:12px;padding:12px;margin:10px 0;background:var(--bg-tertiary);display:none;box-shadow:var(--card-shadow)}
-
-.report-card.ok{background:rgba(48,209,88,0.08)}
-.report-card.err{background:rgba(255,69,58,0.08)}
-
-.report-card h4{margin-bottom:8px;color:var(--accent-blue)}
-.report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.report-metric{border:none;border-radius:10px;padding:8px;background:var(--card-bg);font-size:12px;box-shadow:var(--card-shadow)}
-.report-metric span{display:block;color:var(--text-muted);font-size:11px;margin-bottom:3px}
-.report-detail{white-space:pre-wrap;margin-top:8px;color:var(--text-secondary);font-size:12px;line-height:1.5}
-
-.danger-fold{border:none;border-radius:12px;padding:10px;margin-top:12px;background:rgba(255,69,58,0.08)}
-
-.danger-fold summary{cursor:pointer;color:var(--accent-red);font-weight:700}
-
-.cmd-template-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-
-.cmd-template{border:none;background:var(--bg-tertiary);color:var(--text-primary);border-radius:999px;padding:7px 10px;font-size:12px;cursor:pointer}
-
-.env-status.ok{background:rgba(48,209,88,0.15);color:#30d158}
-
-
-/* ============ 进度条 ============ */
-.progress-container{background:var(--bg-tertiary);border-radius:14px;height:28px;position:relative;margin:12px 0;overflow:hidden;border:none}
-
-.progress-bar{background:linear-gradient(90deg,var(--accent-blue),var(--accent-green));height:100%;border-radius:14px;transition:width 0.3s ease;width:0%}
-
-.progress-text{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-primary);font-weight:600}
-
-.progress-label{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-secondary)}
-
-
-/* ============ 步骤列表 ============ */
-.step-list{max-height:280px;overflow-y:auto;margin:10px 0;border:none;border-radius:12px;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-
-.step-item{padding:12px 16px;border-bottom:1px solid var(--separator);display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
-
-.step-item:last-child{border-bottom:none}
-
-.step-item .idx{color:var(--text-muted);min-width:24px;font-weight:600}
-
-.step-item .type{padding:3px 8px;border-radius:6px;font-size:11px;color:white;flex-shrink:0;font-weight:600}
-
-.type-flash{background:var(--accent-blue)}
-
-.type-erase{background:var(--accent-orange)}
-
-.type-set{background:var(--accent-purple)}
-
-.type-reboot{background:var(--accent-green)}
-
-.type-devices{background:#5e5ce6}
-
-.type-other{background:var(--text-muted)}
-
-.type-getvar{background:#5e5ce6}
-
-.step-item .del-btn{margin-left:auto;background:var(--accent-red);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:12px;cursor:pointer;transition:opacity 0.2s}
-
-.step-item .del-btn:hover{opacity:0.8}
-
-.step-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;white-space:nowrap}
-
-.badge-avb{background:#ff9f0a;color:#fff}
-
-.badge-cow{background:#30d158;color:#fff}
-
-.badge-cond{background:#8e8e93;color:#fff}
-
-.badge-loop{background:#bf5af2;color:#fff}
-
-
-/* ============ 文件列表 ============ */
-.file-list{max-height:180px;overflow-y:auto;border:none;border-radius:12px;margin:8px 0;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-
-.compact-rom-list{max-height:120px;margin:6px 0 0;overflow-y:auto;border:none;background:transparent;border-radius:0;box-shadow:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-
-.rom-section-desc{font-size:11px;color:var(--text-muted);padding:2px 0 4px;letter-spacing:0.3px}
-
-.rom-list-header{display:flex;align-items:center;gap:6px;padding:4px 0 2px;font-size:12px}
-
-.rom-list-title{font-weight:600;color:var(--text-primary)}
-
-.rom-list-count{color:var(--text-muted);font-size:11px}
-
-.rom-list-header .btn{margin-left:auto}
-
-.file-item{padding:8px 12px;border-bottom:1px solid var(--separator);display:flex;justify-content:space-between;align-items:center;font-size:13px}
-
-.file-item:last-child{border-bottom:none}
-
-.file-item .del-btn{background:var(--accent-red);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer}
-
-.file-item .pick-btn{background:var(--accent-green);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-right:4px}
-
-
-/* ============ 自定义项 ============ */
-.custom-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
-
-.custom-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--card-bg);border-radius:10px;margin:6px 0;font-size:13px;border:none;box-shadow:var(--card-shadow)}
-
-.custom-item button{padding:4px 10px;margin-left:6px}
-
-
-/* ============ 日志区域 ============ */
-.log-box{background:#000;color:var(--accent-green);padding:12px;border-radius:12px;height:280px;overflow-y:auto;font-family:'Fira Code','Consolas',monospace;font-size:12px;white-space:nowrap;border:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-
-.log-box div{line-height:1.5}
-
-.log-box .err-line{color:var(--accent-red)}
-
-.log-box .tip-line{color:var(--accent-orange)}
-
-.log-box .ok-line{color:var(--accent-green)}
-
-.log-box .info-line{color:var(--accent-blue)}
-
-
-/* ============ 自定义命令 ============ */
-.command-box{background:var(--card-bg);border:none;border-radius:12px;padding:12px;margin-top:12px;box-shadow:var(--card-shadow)}
-
-.command-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-
-.command-prefix{background:#000;color:var(--accent-green);padding:10px 12px;border-radius:10px;font-family:'Fira Code','Consolas',monospace;font-size:13px}
-
-.command-input input{flex:1;min-width:220px;font-family:'Fira Code','Consolas',monospace}
-
-
-/* ============ 模块状态框 ============ */
-.module-status{background:var(--card-bg);border:none;border-left:3px solid var(--separator);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:12px;color:var(--text-secondary);line-height:1.45;box-shadow:var(--card-shadow)}
-
-.module-status.info{border-left-color:var(--accent-blue);color:var(--accent-blue);background:rgba(10,132,255,0.06)}
-
-.module-status.ok{border-left-color:var(--accent-green);color:var(--accent-green);background:rgba(48,209,88,0.06)}
-
-.module-status.warn{border-left-color:var(--accent-orange);color:var(--accent-orange);background:rgba(255,159,10,0.06)}
-
-.module-status.err{border-left-color:var(--accent-red);color:var(--accent-red);background:rgba(255,69,58,0.06)}
-
-.module-progress{background:var(--bg-tertiary);border:none;border-radius:12px;height:24px;position:relative;overflow:hidden;margin:8px 0;display:none}
-
-.module-progress .module-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent-blue),var(--accent-green));transition:width .25s ease;border-radius:12px}
-
-.module-progress .module-progress-text{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-primary);font-weight:600}
-
-
-
-
-/* ============ 错误诊断卡片 ============ */
-.error-card{background:#3a1a1a;border:none;border-radius:12px;padding:12px;margin:8px 0}
-
-.error-card .error-title{color:var(--accent-red);font-weight:600;margin-bottom:8px;font-size:14px}
-
-.error-card .diagnosis-box{background:rgba(0,0,0,0.2);border-radius:10px;padding:10px;margin-top:8px}
-
-.error-card .diagnosis-box strong{color:var(--accent-orange)}
-
-.error-card .diagnosis-box p{color:var(--text-primary);margin-top:4px;line-height:1.5}
-/* ============ 视图 - 设备连接 ============ */
-.run-mode-panel { padding:12px; }
-.run-mode-head { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px; }
-.run-mode-head h3 { margin:0; }
-.mode-device-row { display:block; }
-.run-mode-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
-.run-mode-tab { background:var(--bg-tertiary); border:none; color:var(--text-primary); border-radius:999px; padding:8px 14px; cursor:pointer; font-size:13px; font-weight:600; text-align:center; transition:background .2s,color .2s; }
-.run-mode-tab.active { color:var(--accent-green); background:rgba(48,209,88,0.12); }
-.device-connect-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.device-connect-row select { order:1; min-width:0; max-width:100%; flex:1 1 0; }
-.device-connect-row .slot-badge { order:3; white-space:nowrap; }
-.device-connect-row #querySlotBtn { display:none; }
-.device-connect-row #checkDeviceBtn { order:2; flex:0 0 auto; width:auto; margin-top:0; white-space:nowrap; }
-.mode-more { font-size:12px; color:var(--accent-blue); cursor:pointer; user-select:none; }
-.run-mode-detail { display:none; margin-top:10px; }
-.run-mode-detail.show { display:block; }
-.run-mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:8px 0; }
-.run-mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:10px; box-shadow:var(--card-shadow); }
-.run-mode-card h4 { font-size:13px; color:var(--accent-blue); margin-bottom:5px; font-weight:600; }
-.run-mode-card p { font-size:12px; color:var(--text-secondary); line-height:1.5; }
-.run-mode-card .mode-check { display:inline-block; margin-top:6px; font-size:11px; color:var(--accent-green); }
-.mode-status-compact { margin:8px 0 0; padding:8px 10px; font-size:12px; border-radius:10px; }
-#modeStatus { display:none; }
-body[data-run-mode="webusb"] .webusb-highlight { border-left-color:var(--accent-green); }
-
-/* ============ 视图 - 线刷 ============ */
-.batch-page h3 { margin:8px 0 6px; }
-.batch-pack-card { border:none; border-radius:12px; background:var(--card-bg); padding:10px; margin:8px 0; box-shadow:var(--card-shadow); }
-.batch-pack-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:13px; font-weight:700; color:var(--accent-blue); }
-.batch-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; align-items:center; }
-.batch-grid select { min-width:0!important; width:100%; }
-.batch-inline-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:7px; align-items:center; margin:6px 0; }
-.batch-select-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:7px; align-items:center; margin:6px 0; }
-.batch-inline-row select,.batch-select-row select { min-width:0!important; width:100%; }
-.batch-action-row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-top:7px; }
-.batch-action-row .btn { flex:0 0 auto; }
-.batch-summary-compact { padding:9px 10px; margin:8px 0; }
-.batch-summary-compact h4 { display:none; }
-.batch-summary-compact p { font-size:12px; line-height:1.35; margin:0; }
-.batch-summary-compact .metric-row { margin-top:5px; }
-.batch-summary-compact .smart-actions { margin-top:6px; }
-.class-info-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:4px 0 6px; min-height:22px; }
-.class-badge { display:inline-block; font-size:10px; padding:1px 7px; border-radius:4px; background:var(--accent-blue); color:#fff; font-weight:600; letter-spacing:.3px; }
-.class-name-badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:4px; background:var(--bg-tertiary); color:var(--text-primary); }
-.class-legacy { background:var(--text-muted); }
-.class-linear { background:#5e5ce6; }
-.class-conditional { background:#bf5af2; }
-.class-function { background:#ff9f0a; }
-.class-payload { background:#30d158; }
-.class-pixel_flash_all { background:#007aff; }
-.class-miui_fastboot { background:#ff6482; }
-.class-dynamic_partition { background:#64d2ff; color:#000; }
-.conf-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:600; }
-.conf-certain { background:#30d158; color:#fff; }
-.conf-high { background:#34c759; color:#fff; }
-.conf-mid { background:#ff9f0a; color:#fff; }
-.conf-low { background:#ff453a; color:#fff; }
-.verify-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:600; }
-.verify-pass { background:#30d158; color:#fff; }
-.verify-fail { background:#ff453a; color:#fff; }
-.verify-pending { background:#ff9f0a; color:#fff; }
-.resource-note-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(142,142,147,0.2); color:var(--text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.source-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(90,200,250,0.15); color:var(--accent-blue); font-family:monospace; }
-.batch-exec-bar { display:grid; grid-template-columns:1fr; gap:6px; align-items:stretch; margin-top:8px; }
-.batch-exec-buttons { display:grid; grid-template-columns:1fr auto; gap:7px; }
-.batch-exec-buttons .btn.warn { min-width:112px; }
-.batch-exec-bar #batchStatus { margin:0; min-height:0; white-space:normal; word-break:normal; overflow-wrap:break-word; }
-.batch-exec-bar #batchTip { margin:0; color:var(--accent-red); font-size:12px; line-height:1.35; }
-.slot-badge { background:var(--bg-tertiary); color:var(--accent-green); padding:3px 8px; border-radius:6px; font-size:12px; font-weight:600; }
-body[data-run-mode="webusb"] .backend-mode-only { display:none!important; }
-body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
-/* ============ 视图 - 版本信息 ============ */
-.version-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-.version-card { background:var(--card-bg); border-radius:12px; padding:12px; box-shadow:var(--card-shadow); margin-bottom:12px; }
-.version-row { display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap; }
-.version-label { font-size:13px; color:var(--text-muted); min-width:60px; }
-.version-number { font-size:16px; font-weight:700; color:var(--accent-blue); }
-.version-changelog { font-size:12px; line-height:1.6; }
-.ver-item { border-bottom:1px solid var(--separator); }
-.ver-item:last-child { border-bottom:none; }
-.ver-current { background:rgba(48,209,88,0.04); }
-.ver-header { display:flex; align-items:center; gap:6px; padding:10px 8px; cursor:pointer; user-select:none; font-size:13px; font-weight:600; color:var(--text-primary); }
-.ver-header:hover { background:var(--bg-tertiary); border-radius:8px; }
-.ver-arrow { font-size:14px; color:var(--text-muted); transition:transform 0.2s; margin-left:auto; }
-.ver-arrow.open { transform:rotate(90deg); }
-.ver-body { display:none; padding:0 8px 8px; font-size:12px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap; }
-.ver-body.open { display:block; }
-
-/* ============ 视图 - 工具箱 ============ */
-.mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:10px 0; }
-.mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:12px; box-shadow:var(--card-shadow); }
-.mode-card h4 { font-size:14px; color:var(--accent-blue); margin-bottom:6px; font-weight:600; }
-.mode-card p { font-size:12px; color:var(--text-secondary); line-height:1.6; }
-.mode-card .mode-tag { display:inline-block; margin-top:8px; font-size:11px; color:var(--accent-green); background:rgba(48,209,88,0.1); border:none; border-radius:999px; padding:3px 8px; }
-.tool-group { border:none; border-radius:12px; padding:8px; margin:8px 0; background:var(--card-bg); box-shadow:var(--card-shadow); }
-.tool-group h3 { margin-top:0; }
-.tool-group.danger { background:rgba(255,69,58,0.06); }
-.tool-group.warn { background:rgba(255,159,10,0.06); }
-.reboot-top-row { display:grid; grid-template-columns:1fr 82px 82px; gap:7px; align-items:center; margin-bottom:7px; }
-.reboot-top-row h3 { margin:0!important; white-space:nowrap; }
-.reboot-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
-.reboot-row .btn { width:100%; min-width:0; padding-left:4px; padding-right:4px; }
-.slot-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-.slot-title-row h3 { margin:0; }
-.slot-current-badge { font-size:12px; color:var(--accent-green); border:none; background:rgba(48,209,88,0.12); border-radius:999px; padding:3px 8px; white-space:nowrap; }
-.bl-status-badge { font-size:12px; border:none; background:var(--bg-tertiary); border-radius:999px; padding:3px 8px; white-space:nowrap; color:var(--text-secondary); }
-.bl-status-badge.ok { color:var(--accent-green); background:rgba(48,209,88,0.12); }
-.bl-status-badge.warn { color:var(--accent-orange); background:rgba(255,159,10,0.12); }
-.button-hint { font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
-.empty-state { border:none; border-radius:12px; padding:16px 12px; text-align:center; color:var(--text-muted); font-size:12px; line-height:1.45; background:var(--bg-tertiary); }
-/* ============ 视图 - 工作台 ============ */
-.wb-step { display:flex; align-items:center; gap:6px; padding:6px 8px; margin:4px 0; background:var(--bg-card,rgba(30,41,59,.8)); border-radius:6px; font-size:12px; border-left:3px solid var(--accent-blue,#409eff); }
-.wb-step[data-type="adb"] { border-left-color: #67c23a; }
-.wb-step[data-type="shell"] { border-left-color: #f59e0b; }
-.wb-step .wb-step-num { min-width:20px; color:var(--text-muted); font-size:11px; }
-.wb-step .wb-step-cmd { flex:1; word-break:break-all; color:#e2e8f0; }
-.wb-step .wb-step-actions { display:flex; gap:4px; }
-.wb-step .wb-step-actions button { padding:2px 8px; font-size:11px; border:none; border-radius:4px; cursor:pointer; }
-.wb-step .wb-run-btn { background:var(--accent-blue,#409eff); color:#fff; }
-.wb-step .wb-run-btn:disabled { background:#555; cursor:not-allowed; }
-.wb-step .wb-up-btn, .wb-step .wb-down-btn { background:#334155; color:#ccc; }
-.wb-step .wb-del-btn { background:#ef4444; color:#fff; }
-.wb-step .wb-status { font-size:11px; padding:1px 6px; border-radius:3px; }
-.wb-step .wb-status.pending { background:#334155; color:#94a3b8; }
-.wb-step .wb-status.running { background:#f59e0b22; color:#f59e0b; }
-.wb-step .wb-status.success { background:#22c55e22; color:#22c55e; }
-.wb-step .wb-status.failed { background:#ef444422; color:#ef4444; }
-.wb-qa-section { margin-bottom: 4px; }
-.wb-qa-tab { flex:1; padding: 6px 8px; border: 1px solid var(--border-color,rgba(100,116,139,.3)); border-radius: 8px; background: var(--bg-card,#1e293b); color: var(--text-muted); font-size: 12px; cursor: pointer; text-align: center; transition: all .2s; }
-.wb-qa-tab.active-fb { background: rgba(59,130,246,.2); color: #3b82f6; border-color: #3b82f6; font-weight: 600; }
-.wb-qa-tab.active-adb { background: rgba(34,197,94,.2); color: #22c55e; border-color: #22c55e; font-weight: 600; }
-.wb-qa-label { font-size: 11px; color: var(--text-muted); margin: 4px 0 2px; padding-left: 2px; }
-.wb-qa-category { font-size: 13px; font-weight: 600; margin: 8px 0 4px; padding: 4px 8px; border-radius: 6px; }
-.wb-qa-category.fb { background: rgba(59,130,246,.12); color: #3b82f6; border-left: 3px solid #3b82f6; }
-.wb-qa-category.adb { background: rgba(34,197,94,.12); color: #22c55e; border-left: 3px solid #22c55e; }
-.wb-qa-safe { border-left: 2px solid #22c55e; }
-.wb-qa-warn { border-left: 2px solid #f59e0b; }
-.wb-qa-danger { border-left: 2px solid #ef4444; }
-.wb-type-switch { display: flex; gap: 0; margin-bottom: 10px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color,rgba(100,116,139,.3)); }
-.wb-type-btn { flex: 1; padding: 6px 4px; font-size: 12px; border: none; background: var(--bg-card,rgba(30,41,59,.6)); color: #94a3b8; cursor: pointer; transition: all .15s; }
-.wb-type-btn.active { background: var(--accent-blue,#409eff); color: #fff; }
-.wb-type-btn:not(.active):hover { background: rgba(30,41,59,.9); }
-.wb-step-desc { font-size: 12px; color: #e2e8f0; line-height: 1.3; margin-bottom: 2px; }
-.wb-step-raw { font-size: 10px; color: #64748b; word-break: break-all; }
-.wb-step-risk { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; }
-.wb-step-risk.safe { background: #22c55e22; color: #22c55e; }
-.wb-step-risk.warn { background: #f59e0b22; color: #f59e0b; }
-.wb-step-risk.danger { background: #ef444422; color: #ef4444; }
-.wb-step-risk.data-loss { background: #dc262622; color: #dc2626; }
-#wbSchemePanel { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
-#wbSchemePanel.show { display: flex; }
-.wb-scheme-card { background:var(--bg-card,#1e293b); border-radius:10px; padding:16px; max-width:90vw; width:360px; max-height:70vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
-.wb-scheme-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(100,116,139,.2); }
-.wb-scheme-item:last-child { border-bottom: none; }
-</style></head>
+<link rel="stylesheet" href="/static/css/main.css?v=4">
+<link rel="stylesheet" href="/static/css/views/device.css?v=4">
+<link rel="stylesheet" href="/static/css/views/batch.css?v=4">
+<link rel="stylesheet" href="/static/css/views/version.css?v=4">
+<link rel="stylesheet" href="/static/css/views/tools.css?v=4">
+<link rel="stylesheet" href="/static/css/views/workbench.css?v=4">
+</head>
 <body>
 
 <!-- 主题切换按钮 -->
@@ -1217,15 +505,28 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 <div class="tool-group warn">
 <h3>关闭VBmeta校验</h3>
 <div class="row">
-<label>镜像地址：</label>
+<label>镜像来源：</label>
+<select id="vbmetaSource" style="width:100px">
+<option value="custom">自定义绝对路径</option>
+<option value="rom">已解压刷机包</option>
+</select>
+</div>
+<div id="vbmetaRomRow" style="display:none">
+<div class="row">
+<select id="vbmetaRomSelect" style="min-width:120px"><option value="">选择已解压线刷包</option></select>
+<select id="vbmetaRomImgSelect" style="flex:1;min-width:180px"><option value="">选择镜像</option></select>
+</div>
+</div>
+<div id="vbmetaCustomRow">
+<div class="row">
 <input type="text" id="vbmetaSelect" style="flex:1;min-width:180px" placeholder="镜像绝对路径，如 /sdcard/123456/image/vbmeta.img">
-<button class="btn secondary small" id="vbmetaPickBtn" title="从刷机包目录选择 vbmeta.img">📂 选择</button>
+</div>
 </div>
 <div class="row">
 <button class="btn small warn" id="disableVbmetaBtn" disabled>执行关闭校验</button>
 </div>
-<p class="tip">输入镜像绝对路径，或点击「选择」从已解压刷机包选取 vbmeta.img；工具会校验路径安全性并执行关闭校验。</p>
-<p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并输入 vbmeta 镜像绝对地址。</p>
+<p class="tip">选择「自定义绝对路径」手动输入镜像地址，或选择「已解压刷机包」从项目列表中选取镜像；工具会校验路径安全性并执行关闭校验。</p>
+<p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并选择 vbmeta 镜像。</p>
 </div>
 
 <div class="divider"></div>
@@ -1358,40 +659,10 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 </div>
 </div>
 
-
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <!-- 重构新增：安全 DOM 访问与模块初始化系统，必须在 state.js 之前加载 -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <script>
-'use strict';
-// 错误边界：init.js 现在通过 DOMContentLoaded + Modules.init() 统一初始化，
-// 这里保留兜底，避免旧代码或第三方脚本直接调用 init 导致重复执行。
-window.__legacyInit = function() {
-  console.warn('[保护] 检测到旧 init() 调用，已忽略（请使用 Modules.init）');
-};
-</script>
-<script>// flash_tool/static/js/safe-dom.js
+// flash_tool/static/js/safe-dom.js
 // ============ 安全 DOM 访问层 ============
 // 目标：解决前端「稍微改动就崩溃」的核心问题。
 // 1. 提供 $(id) 安全获取元素；元素不存在时返回空代理，避免 null 抛错。
@@ -1564,6 +835,8 @@ window.__legacyInit = function() {
 
 })(window);
 
+</script>
+<script>
 // flash_tool/static/js/module-system.js
 // ============ 轻量级模块注册与初始化系统 ============
 // 目标：替代按 script 标签顺序加载的脆弱方式，使各功能模块显式声明依赖，
@@ -1705,6 +978,8 @@ window.__legacyInit = function() {
 
 })(window);
 
+</script>
+<script>
 // flash_tool/static/js/state.js
 // ============ 应用状态（集中管理） ============
 let _savedMode;
@@ -1982,6 +1257,8 @@ Modules.register('state', [], function initStateModule() {
     console.log('[state] 应用状态模块已初始化');
     return true;
 });
+</script>
+<script>
 // flash_tool/static/js/config.js
 // ============ 后端地址配置 ============
 // 部署到 GitHub Pages 时，在这里配置你的后端服务器地址
@@ -2023,6 +1300,8 @@ Modules.register('state', [], function initStateModule() {
         writeLog('后端地址已切换为：' + (url || '当前页面'), 'ok');
     };
 })();
+</script>
+<script>
 // flash_tool/static/js/api.js
 // ============ WebSocket 连接 ============
 function updateEnvStatusConnection() {
@@ -2352,6 +1631,8 @@ Modules.register('api', [], async function initApiModule() {
     console.log('[api] API 层已就绪（超时保护已启用）');
     return { apiRequest, apiGet, apiPost, parseApiResponse };
 });
+</script>
+<script>
 // flash_tool/static/js/utils.js
 // ============ 通用辅助函数 ============
 
@@ -2433,6 +1714,8 @@ Modules.register('utils', [], function initUtilsModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/ui.js
 // ============ 进度条 ============
 /**
@@ -2984,6 +2267,8 @@ Modules.register('ui', [], function initUIModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/device.js
 // ============ 环境检查 ============
 async function checkEnv() {
@@ -3405,6 +2690,8 @@ function showFlashReport(success, detail = '') {
     writeLog(report, success ? 'ok' : 'err');
 }
 
+</script>
+<script>
 // flash_tool/static/js/device_info.js
 // ============ 补充函数 ============
 function getFastbootModeLabel() {
@@ -3555,6 +2842,8 @@ Modules.register('device-info', ['ui'], function initDeviceInfoModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/rom.js
 // ============ 镜像管理 ============
 async function loadProjectImages() {
@@ -3898,6 +3187,8 @@ Modules.register('rom', ['api','utils','device-info'], function initRomModule() 
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/bat.js
 // ============ BAT 脚本 ============
 async function refreshBatList() {
@@ -4347,6 +3638,8 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
     console.log('[bat] BAT 模块已初始化');
     return true;
 });
+</script>
+<script>
 // flash_tool/static/js/interactive_selector.js
 // ============ 交互式脚本【逐层+进度选择器】 ============
 //
@@ -4720,6 +4013,8 @@ Modules.register('interactive-selector', [], function initInteractiveSelectorMod
     console.log('[interactive-selector] 交互式选择器模块已初始化');
     return true;
 });
+</script>
+<script>
 // flash_tool/static/js/bat_risk.js
 
 // 禁用步骤编辑功能（复杂脚本模式）
@@ -5095,6 +4390,8 @@ Modules.register('bat-risk', [], function initBatRiskModule() {
     console.log('[bat-risk] 脚本风险模块已初始化');
     return true;
 });
+</script>
+<script>
 // flash_tool/static/js/custom_flash.js
 // ============ 自定义单刷 ============
 let customImgSourceEl, customRomSelectEl, customImgSelectEl;
@@ -5459,6 +4756,8 @@ Modules.register('custom-flash', ['api','utils','device-info'], function initCus
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/flash.js
 // ============ 线刷 ============
 async function startBatchFlash() {
@@ -5746,6 +5045,8 @@ Modules.register('flash', ['api','utils','bat','bat-risk'], function initFlashMo
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/toolbox_ops.js
 
 // ============ 重启 ============
@@ -6000,6 +5301,8 @@ Modules.register('toolbox-ops', ['api','utils','device-info'], function initTool
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/webusb.js
 function validateWebUsbScriptImages() {
     if (stepList.length === 0) return {ok: true, missing: []};
@@ -6283,6 +5586,8 @@ Modules.register('webusb', [], function initWebusbModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/workbench.js
 // ============ 工作台 v3.2.0 ============
 // 注：wbSteps / wbExecuting / wbDetectedPartitions / wbCurrentType 已在 state.js 中声明
@@ -6853,6 +6158,8 @@ Modules.register('workbench', ['api','utils'], function initWorkbenchModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
@@ -7304,6 +6611,8 @@ Modules.register('changelog', ['state'], function initChangelogModule(state) {
     console.log('[changelog] 更新日志模块已初始化');
     return true;
 });
+</script>
+<script>
 // flash_tool/static/js/tools.js
 // 版本/工具模块：依赖 changelog.js 提供的 window.renderVersionChangelog
 
@@ -7389,44 +6698,134 @@ async function doUpdate() {
     });
 }
 
-// ============ VBmeta（工具页：镜像地址输入与关闭校验） ============
+// ============ VBmeta（工具页：镜像来源选择与关闭校验） ============
+
 /**
- * vbmeta 镜像地址输入变化回调：仅刷新按钮状态。
+ * 获取当前选择的 vbmeta 镜像路径（从输入框或下拉框联动获取）
  */
-function onVbmetaInputChange() {
-    updateBtnState();
+function getVbmetaImagePath() {
+    const source = document.getElementById('vbmetaSource');
+    if (!source) return '';
+    if (source.value === 'custom') {
+        const input = document.getElementById('vbmetaSelect');
+        return input ? input.value.trim() : '';
+    }
+    const imgSelect = document.getElementById('vbmetaRomImgSelect');
+    const romSelect = document.getElementById('vbmetaRomSelect');
+    if (!imgSelect || !romSelect) return '';
+    const img = imgSelect.value;
+    const rom = romSelect.value;
+    if (!img || !rom) return '';
+    return `/sdcard/123456/${rom}/images/${img}`;
 }
 
 /**
- * 加载 VBmeta 镜像列表：从已解压刷机包中自动扫描 vbmeta.img 路径填入输入框。
- * 在初始化时和解压完成后自动调用。
+ * 刷新按钮状态：根据当前选择的镜像来源和路径决定是否启用。
+ */
+function updateVbmetaBtnState() {
+    const btn = document.getElementById('disableVbmetaBtn');
+    if (!btn) return;
+    btn.disabled = !getVbmetaImagePath();
+}
+
+/**
+ * 切换 VBmeta 镜像来源：自定义路径 ↔ 已解压刷机包
+ */
+function onVbmetaSourceChange() {
+    const source = document.getElementById('vbmetaSource');
+    if (!source) return;
+    const isRom = source.value === 'rom';
+    const romRow = document.getElementById('vbmetaRomRow');
+    const customRow = document.getElementById('vbmetaCustomRow');
+    if (romRow) romRow.style.display = isRom ? '' : 'none';
+    if (customRow) customRow.style.display = isRom ? 'none' : '';
+    if (isRom) {
+        refreshVbmetaRomList();
+    } else {
+        updateVbmetaBtnState();
+    }
+}
+
+/**
+ * 刷新已解压刷机包列表到 #vbmetaRomSelect
+ */
+async function refreshVbmetaRomList() {
+    const romSelect = document.getElementById('vbmetaRomSelect');
+    if (!romSelect) return;
+    const prevVal = romSelect.value;
+    romSelect.innerHTML = '<option value="">加载中...</option>';
+    romSelect.disabled = true;
+    try {
+        const data = await apiGet('/api/rom/list');
+        const dirs = (data && data.dirs) || [];
+        romSelect.innerHTML = '<option value="">选择已解压线刷包</option>';
+        dirs.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.name;
+            opt.textContent = d.name + (d.type ? ` (${d.type})` : '');
+            if (d.name === prevVal) opt.selected = true;
+            romSelect.appendChild(opt);
+        });
+        romSelect.disabled = false;
+        onVbmetaRomSelectChange();
+    } catch(e) {
+        romSelect.innerHTML = '<option value="">加载失败</option>';
+        romSelect.disabled = false;
+        console.warn('refreshVbmetaRomList 失败:', e);
+    }
+}
+
+/**
+ * 已解压刷机包选择变化 → 加载该项目的镜像列表到 #vbmetaRomImgSelect
+ */
+async function onVbmetaRomSelectChange() {
+    const romSelect = document.getElementById('vbmetaRomSelect');
+    const imgSelect = document.getElementById('vbmetaRomImgSelect');
+    if (!romSelect || !imgSelect) return;
+    const rom = romSelect.value;
+    if (!rom) {
+        imgSelect.innerHTML = '<option value="">选择镜像</option>';
+        imgSelect.disabled = true;
+        updateVbmetaBtnState();
+        return;
+    }
+    imgSelect.innerHTML = '<option value="">加载镜像列表...</option>';
+    imgSelect.disabled = true;
+    try {
+        const data = await apiGet('/api/rom/images?rom_name=' + encodeURIComponent(rom));
+        const files = (data && data.files) || [];
+        imgSelect.innerHTML = '<option value="">选择镜像</option>';
+        files.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            imgSelect.appendChild(opt);
+        });
+        imgSelect.disabled = false;
+    } catch(e) {
+        imgSelect.innerHTML = '<option value="">加载失败</option>';
+        imgSelect.disabled = false;
+        console.warn('onVbmetaRomSelectChange 失败:', e);
+    }
+    updateVbmetaBtnState();
+}
+
+/**
+ * 加载 VBmeta 镜像来源列表（初始化时调用），自动选中第一个项目并刷新镜像。
  */
 async function loadVbmetaRomList() {
-    const vbmetaInput = document.getElementById('vbmetaSelect');
-    if (!vbmetaInput) return;
     try {
-        const data = await apiGet('/api/rom/projects');
-        const projects = (data && data.projects) || [];
-        if (projects.length === 0) return;
-        // 取第一个项目尝试填充 vbmeta.img 的常见路径
-        const base = `/sdcard/123456/${projects[0]}/images`;
-        // 先尝试检测是否有标准的 vbmeta.img 或 vbmeta_a.img
-        const candidates = ['vbmeta.img', 'vbmeta_a.img', 'vbmeta_b.img'];
-        for (const fn of candidates) {
-            try {
-                const check = await fetch(`${App.backendUrl || ''}/api/fs/exists`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: `${base}/${fn}`})
-                });
-                const r = await check.json();
-                if (r.exists) {
-                    vbmetaInput.placeholder = `如 ${base}/${fn}`;
-                    return;
-                }
-            } catch(e) { /* 忽略单文件检测错误 */ }
-        }
-        vbmetaInput.placeholder = `镜像绝对路径，如 ${base}/vbmeta.img`;
+        const data = await apiGet('/api/rom/list');
+        const dirs = (data && data.dirs) || [];
+        const romSelect = document.getElementById('vbmetaRomSelect');
+        if (!romSelect) return;
+        romSelect.innerHTML = '<option value="">选择已解压线刷包</option>';
+        dirs.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.name;
+            opt.textContent = d.name + (d.type ? ` (${d.type})` : '');
+            romSelect.appendChild(opt);
+        });
     } catch(e) {
         console.warn('loadVbmetaRomList 获取项目列表失败:', e);
     }
@@ -7439,7 +6838,7 @@ async function loadVbmetaRomList() {
  * 镜像使用绝对路径（source=path），后端会校验路径安全性。
  */
 async function disableVbmeta() {
-    const img = document.getElementById('vbmetaSelect').value.trim();
+    const img = getVbmetaImagePath();
     if (!img) return;
 
     showConfirm('操作确认', '刷入 vbmeta 并关闭校验（--disable-verity --disable-verification），确认继续？', async () => {
@@ -7503,52 +6902,6 @@ async function disableVbmeta() {
     }, false);
 }
 
-// ============ 选择 VBmeta 镜像（从已解压刷机包列表选取） ============
-async function pickVbmetaImage() {
-    try {
-        const data = await apiGet('/api/rom/projects');
-        const projects = (data && data.projects) || [];
-        if (projects.length === 0) {
-            alert('没有已解压的刷机包项目，请先在线刷页解压线刷包。');
-            return;
-        }
-        let msg = '选择刷机包项目以选取 vbmeta.img：\n';
-        projects.forEach((p, i) => { msg += `${i + 1}. ${p}\n`; });
-        const idx = prompt(msg + '\n请输入编号 (1~' + projects.length + ')：');
-        if (!idx) return;
-        const i = parseInt(idx, 10);
-        if (isNaN(i) || i < 1 || i > projects.length) { alert('无效编号'); return; }
-        const project = projects[i - 1];
-
-        // 获取该项目脚本/文件列表
-        const flist = await apiGet('/api/rom/scripts?project=' + encodeURIComponent(project));
-        const files = flist.files || flist.scripts || [];
-        const vbmetaFiles = files.filter(f => f.toLowerCase().includes('vbmeta'));
-        const input = document.getElementById('vbmetaSelect');
-        if (!input) return;
-        if (vbmetaFiles.length === 0) {
-            let fileMsg = '该项目下未找到 vbmeta 文件，请手动输入路径或选其他项目。\n';
-            fileMsg += '可用文件列表：\n' + files.map((f, j) => `${j + 1}. ${f}`).join('\n');
-            alert(fileMsg);
-            input.value = `/sdcard/123456/${project}/images/vbmeta.img`;
-        } else if (vbmetaFiles.length === 1) {
-            input.value = `/sdcard/123456/${project}/images/${vbmetaFiles[0]}`;
-        } else {
-            let selMsg = '找到多个 vbmeta 文件：\n';
-            vbmetaFiles.forEach((f, j) => { selMsg += `${j + 1}. ${f}\n`; });
-            const selIdx = prompt(selMsg + '\n请选择编号 (1~' + vbmetaFiles.length + ')：');
-            if (!selIdx) return;
-            const si = parseInt(selIdx, 10);
-            if (isNaN(si) || si < 1 || si > vbmetaFiles.length) { alert('无效编号'); return; }
-            input.value = `/sdcard/123456/${project}/images/${vbmetaFiles[si - 1]}`;
-        }
-        onVbmetaInputChange();
-    } catch(e) {
-        console.warn('选择 VBmeta 镜像失败:', e);
-        alert('获取刷机包列表失败: ' + e.message);
-    }
-}
-
 // ============ 版本/工具模块事件委托 ============
 function handleVersionAction(e) {
     const btn = e.target.closest('[data-action]');
@@ -7565,21 +6918,38 @@ function handleVersionAction(e) {
 
 // ============ 模块初始化 ============
 Modules.register('tools', ['api','utils','device-info'], function initToolsModule() {
+    // VBmeta 镜像来源切换
+    const vbmetaSource = document.getElementById('vbmetaSource');
+    if (vbmetaSource) vbmetaSource.onchange = onVbmetaSourceChange;
+
+    // VBmeta 自定义路径输入
     const vbmetaInput = document.getElementById('vbmetaSelect');
     if (vbmetaInput) {
-        vbmetaInput.oninput = onVbmetaInputChange;
-        vbmetaInput.onchange = onVbmetaInputChange;
+        vbmetaInput.oninput = updateVbmetaBtnState;
+        vbmetaInput.onchange = updateVbmetaBtnState;
     }
-    const vbmetaPickBtn = document.getElementById('vbmetaPickBtn');
-    if (vbmetaPickBtn) vbmetaPickBtn.onclick = pickVbmetaImage;
+
+    // VBmeta 刷机包选择
+    const vbmetaRomSelect = document.getElementById('vbmetaRomSelect');
+    if (vbmetaRomSelect) vbmetaRomSelect.onchange = onVbmetaRomSelectChange;
+
+    // VBmeta 镜像选择
+    const vbmetaRomImgSelect = document.getElementById('vbmetaRomImgSelect');
+    if (vbmetaRomImgSelect) vbmetaRomImgSelect.onchange = updateVbmetaBtnState;
+
+    // VBmeta 执行关闭校验
     const disableVbmetaBtn = document.getElementById('disableVbmetaBtn');
     if (disableVbmetaBtn) disableVbmetaBtn.onclick = disableVbmeta;
 
     loadVersion();
+    loadVbmetaRomList();
 
     console.log('[tools] 版本/工具模块已初始化');
     return true;
 });
+</script>
+
+<script>
 // ============ 脚本上传功能（自包含重写版）============
 // v2 - 脱离 _upload_records.json，直接用 WebDAV 文件名列表
 var _selectedUploadFile = null;
@@ -8084,6 +7454,8 @@ Modules.register('upload', [], function initUploadModule() {
     return true;
 });
 
+</script>
+<script>
 // flash_tool/static/js/init.js
 // ============ 应用初始化 ============
 // 改造后：通过 Modules.register 注册初始化模块，DOMReady 后统一调用。
@@ -8205,5 +7577,14 @@ window.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-</script></body>
+</script>
+<script>
+'use strict';
+// 错误边界：init.js 现在通过 DOMContentLoaded + Modules.init() 统一初始化，
+// 这里保留兜底，避免旧代码或第三方脚本直接调用 init 导致重复执行。
+window.__legacyInit = function() {
+  console.warn('[保护] 检测到旧 init() 调用，已忽略（请使用 Modules.init）');
+};
+</script>
+</body>
 </html>
