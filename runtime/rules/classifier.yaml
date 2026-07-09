@@ -1,0 +1,155 @@
+# classifier.yaml — 分类规则热更新配置
+#
+# 修改此文件后调用 POST /api/hydra/reload-rules 即可生效，无需重启服务。
+# 格式说明：
+#   id:          特征唯一标识
+#   short:       class_id 中使用的缩写名
+#   pattern:     正则表达式（Python re 语法）
+#   flags:       正则标志组合（I=IGNORECASE, S=DOTALL, M=MULTILINE, 可组合如 IS）
+#   requires_also:  附加条件正则（主正则命中后再检查此正则，两者都命中才算 true）
+#   requires_also_flags: 附加条件正则的标志
+#   is_fallback:  true 表示仅当无其他分类特征命中时才激活（如 bare_commands）
+#   marker:       true 表示不参与 class_id 编码，仅作为附加标记返回
+
+bat_features:
+  - id: interactive
+    short: interactive
+    pattern: '\bset\s+/p\b'
+    flags: I
+
+  - id: for_loop
+    short: for
+    pattern: '\bfor\s+%%\w+\s+in\s*\(\s*[^*]'
+    flags: I
+
+  - id: for_glob
+    short: for_glob
+    pattern: '\bfor\s+%%\w+\s+in\s*\(\s*\*'
+    flags: I
+
+  - id: for_f
+    short: for_f
+    pattern: '\bfor\s+/f\b'
+    flags: I
+
+  - id: nested_for
+    short: nested
+    pattern: 'for\s+%%\w+\s+in\b.*\bfor\s+%%\w+\s+in\b'
+    flags: IS
+
+  - id: goto_label
+    short: goto
+    pattern: '\bgoto\b'
+    flags: I
+    requires_also: '^:\w+'
+    requires_also_flags: M
+
+  - id: call_sub
+    short: call
+    pattern: '\bcall\s+:?\w'
+    flags: I
+
+  - id: conditional
+    short: if
+    pattern: '\bif\s+(exist|not\s+exist|/i|\S+\s*==)'
+    flags: I
+
+  - id: delayed_expansion
+    short: delayed
+    pattern: '\bsetlocal\s+enabledelayedexpansion\b'
+    flags: I
+
+  - id: dynamic_var
+    short: dyn
+    pattern: '!(?!errorlevel!|date!|time!|random!|cd!|highestanum!|__locale!)[a-zA-Z]\w*!'
+    flags: I
+
+  - id: error_check
+    short: err_check
+    pattern: '\bif\s+errorlevel'
+    flags: I
+
+  - id: bare_commands
+    short: bare
+    pattern: '^\s*(?:".*?\\fastboot\.exe"|fastboot)\s+'
+    flags: M
+    is_fallback: true
+
+sh_features:
+  - id: for_loop
+    short: for
+    pattern: '\bfor\s+\S+\s+in\b'
+    flags: I
+
+  - id: while_loop
+    short: while
+    pattern: '\bwhile\s+\S+\s+do\b'
+    flags: I
+
+  - id: if_branch
+    short: if
+    pattern: '\bif\b.*\bthen\b'
+    flags: IS
+
+  - id: case_stmt
+    short: case
+    pattern: '\bcase\b[\s\S]*\besac\b'
+    flags: I
+
+  - id: cmd_subst
+    short: cmd_subst
+    pattern: '\$\(|`[^`]+`'
+    flags: ''
+
+  - id: pipe_chain
+    short: pipe
+    pattern: '[^|]\|[^|]'
+    flags: ''
+
+  - id: redirect
+    short: redirect
+    pattern: '>>?|2>&1|&>'
+    flags: ''
+
+  - id: var_assign
+    short: var_assign
+    pattern: '^\s*\w+='
+    flags: M
+
+  - id: var_default
+    short: var_default
+    pattern: '\$\{\w+:-'
+    flags: ''
+
+  - id: test_expr
+    short: test
+    pattern: '\[\s+.+\s*\]'
+    flags: ''
+
+  - id: func_def
+    short: func
+    pattern: '^\s*\w+\s*\(\)\s*\{'
+    flags: M
+
+  - id: error_check
+    short: err_check
+    pattern: 'if\s+\[\s*\$\?'
+    flags: ''
+
+  - id: vendor_op
+    short: vendor_op
+    pattern: 'flashing\s+unlock|--disable-verit|flash\s+partition'
+    flags: I
+    marker: true
+
+  - id: community
+    short: community
+    pattern: 'XDA|酷安|forum\.xda-developers|telegra\.ph'
+    flags: I
+    marker: true
+
+  - id: converted
+    short: converted
+    pattern: '%VAR%|setlocal|set\s+\w+=\w+.*rem\b'
+    flags: I
+    marker: true

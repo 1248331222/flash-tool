@@ -1,0 +1,16 @@
+# registry.yaml — VIP 文件名映射
+#
+# 定义脚本文件名到 VIP 解析器名的映射。
+# 当脚本文件名命中此表时，走 VIP 专用解析器，完全绕过 sandbox。
+#
+# 格式：
+#   "脚本文件名": vip_parser_name
+#
+# VIP 解析器文件位于 runtime/vip/{vip_parser_name}.py，
+# 需定义 parse(content, script_path, rom_dir) 函数。
+#
+# 支持通配符匹配（* 和 ?）。
+
+# 示例（取消注释后生效）：
+# "抉择线路.bat": jueline
+# "D1bat.bat": d1bat

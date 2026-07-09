@@ -1,0 +1,184 @@
+# choices.yaml — 交互式脚本分支选项定义
+#
+# 此文件定义交互式脚本的分支描述树。
+# 从 core/hydra/__init__.py 外移，支持热更新。
+#
+# 修改后调用 POST /api/hydra/reload 即可生效。
+
+# 顺序抉择定义（按脚本文件名索引）
+# 每个脚本定义一组顺序步骤，用户依次选择
+sequential_choices:
+  "抉择线路.bat":
+    - title: "选择boot刷写方式"
+      desc: "选择刷写 boot_a 还是 boot_b 分区"
+      options:
+        - value: "boot_choice=2"
+          label: "刷写 boot_a"
+          description: "flash boot_a boot.img"
+          step_count: 1
+        - value: "boot_choice=3"
+          label: "刷写 boot_b"
+          description: "flash boot_b boot.img"
+          step_count: 1
+
+    - title: "选择额外刷写分区"
+      desc: "选择一个分区额外刷写"
+      options:
+        - value: "extra_choice=4"
+          label: "刷写 dtbo"
+          description: "flash dtbo dtbo.img"
+          step_count: 1
+        - value: "extra_choice=5"
+          label: "刷写 vbmeta"
+          description: "flash vbmeta vbmeta.img"
+          step_count: 1
+        - value: "extra_choice=6"
+          label: "刷写 recovery"
+          description: "flash recovery recovery.img"
+          step_count: 1
+
+    - title: "选择重启方式"
+      desc: "选择脚本执行完毕后的重启方式"
+      options:
+        - value: "reboot_choice=9"
+          label: "重启到系统"
+          description: "fastboot reboot"
+          step_count: 1
+        - value: "reboot_choice=10"
+          label: "重启到 Bootloader"
+          description: "fastboot reboot bootloader"
+          step_count: 1
+
+# 已知分支描述树（按交互变量值索引）
+# needs_choice: true → 弹出选择框让用户选
+# needs_choice: false → 由 auto_select 自动决定
+known_choices:
+  "mode=1":
+    label: "一键全刷"
+    description: "fastboot flash 刷写所有分区（super/boot/recovery/dtbo/vbmeta/vendor_boot）"
+    needs_choice: false
+    auto_select: "confirm=y"
+    children:
+      - value: "confirm=y"
+        label: "刷入 misc 分区"
+        description: "额外刷入 misc 分区"
+        step_count: 1
+        needs_choice: false
+      - value: "confirm=n"
+        label: "跳过 misc"
+        description: "不刷入 misc 分区（无操作）"
+        step_count: 0
+        needs_choice: false
+
+  "mode=2":
+    label: "分区管理"
+    description: "选择并刷写单个分区（boot/recovery/dtbo/vendor_boot/super/自定义）"
+    needs_choice: true
+    auto_select: ""
+    children:
+      - value: "part_choice=1"
+        label: "刷写 boot 分区"
+        description: "刷写 boot_a/boot_b 双槽引导分区"
+        step_count: 1
+        needs_choice: false
+      - value: "part_choice=2"
+        label: "刷写 recovery"
+        description: "刷写恢复分区"
+        step_count: 1
+        needs_choice: false
+      - value: "part_choice=3"
+        label: "刷写 dtbo"
+        description: "刷写设备树分区"
+        step_count: 1
+        needs_choice: false
+      - value: "part_choice=4"
+        label: "刷写 vendor_boot"
+        description: "刷写厂商引导分区"
+        step_count: 1
+        needs_choice: false
+      - value: "part_choice=5"
+        label: "刷写 super"
+        description: "刷写超级分区"
+        step_count: 1
+        needs_choice: false
+      - value: "part_choice=6"
+        label: "自定义分区"
+        description: "手动输入分区名称刷写"
+        step_count: 1
+        needs_choice: false
+        needs_input: true
+
+  "mode=3":
+    label: "擦除操作"
+    description: "擦除 data 和 cache 分区"
+    needs_choice: false
+    auto_select: "confirm_erase=y"
+    children:
+      - value: "confirm_erase=y"
+        label: "确认擦除"
+        description: "擦除 data 和 cache 分区"
+        needs_choice: true
+        children:
+          - value: "wipe_avb=y"
+            label: "同时擦除 avb 密钥"
+            description: "擦除 avb_custom_key 分区"
+            step_count: 3
+            needs_choice: false
+          - value: "wipe_avb=n"
+            label: "跳过 avb 密钥"
+            description: "只擦除 data 和 cache"
+            step_count: 2
+            needs_choice: false
+      - value: "confirm_erase=n"
+        label: "取消擦除"
+        description: "不执行任何擦除操作，返回主菜单"
+        step_count: 0
+        needs_choice: false
+
+  "mode=4":
+    label: "设备操作"
+    description: "重启设备 / 查看信息 / 切换槽位"
+    needs_choice: true
+    auto_select: ""
+    children:
+      - value: "dev_op=1"
+        label: "重启到系统"
+        description: "执行 fastboot reboot 重启到系统"
+        step_count: 1
+        needs_choice: false
+      - value: "dev_op=2"
+        label: "重启到 Bootloader"
+        description: "执行 fastboot reboot bootloader"
+        step_count: 1
+        needs_choice: false
+      - value: "dev_op=3"
+        label: "重启到 fastbootd"
+        description: "执行 fastboot reboot fastboot"
+        step_count: 1
+        needs_choice: false
+      - value: "dev_op=4"
+        label: "查看当前槽位"
+        description: "执行 fastboot getvar current-slot"
+        step_count: 0
+        needs_choice: false
+      - value: "dev_op=5"
+        label: "切换槽位"
+        description: "切换到指定槽位（a 或 b）"
+        needs_choice: true
+        children:
+          - value: "slot=a"
+            label: "切换到槽位 a"
+            description: "设置槽位 a 为活跃槽位"
+            step_count: 1
+            needs_choice: false
+          - value: "slot=b"
+            label: "切换到槽位 b"
+            description: "设置槽位 b 为活跃槽位"
+            step_count: 1
+            needs_choice: false
+
+  "mode=5":
+    label: "退出"
+    description: "退出脚本，不执行任何操作"
+    step_count: 0
+    needs_choice: false

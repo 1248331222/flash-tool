@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>天树刷机 3.9 (单文件版)</title>
+<title>天树刷机 (Skytree Flasher)</title>
 
 <!-- 错误边界（不修改原版任何功能，只加保护） -->
 <script>
@@ -23,12 +23,727 @@ window.addEventListener('unhandledrejection', function(e) {
   e.preventDefault();
 });
 </script>
-<link rel="stylesheet" href="/static/css/main.css?v=4">
-<link rel="stylesheet" href="/static/css/views/device.css?v=4">
-<link rel="stylesheet" href="/static/css/views/batch.css?v=4">
-<link rel="stylesheet" href="/static/css/views/version.css?v=4">
-<link rel="stylesheet" href="/static/css/views/tools.css?v=4">
-<link rel="stylesheet" href="/static/css/views/workbench.css?v=4">
+<style>
+
+/* ===== css/main.css ===== */
+/* ============ 基础变量与全局 ============ */
+:root{
+    --accent-blue:#0a84ff;
+    --accent-green:#30d158;
+    --accent-orange:#ff9f0a;
+    --accent-red:#ff453a;
+    --accent-purple:#af52de;
+    --bg-primary:#000;
+    --bg-secondary:#121212;
+    --bg-tertiary:#1c1c1e;
+    --bg-card:rgba(28,28,30,.7);
+    --card-bg:rgba(28,28,30,.85);
+    --card-shadow:0 4px 20px rgba(0,0,0,.3);
+    --text-primary:#fff;
+    --text-secondary:#98989d;
+    --text-muted:#636366;
+    --separator:rgba(84,84,88,.4);
+    --rule:rgba(84,84,88,.5);
+    --border-color:rgba(84,84,88,.4);
+    --input-bg:rgba(44,44,46,.8);
+    --input-border:rgba(84,84,88,.5);
+    --input-focus-ring:rgba(10,132,255,.25);
+    --frosted-bg:rgba(28,28,30,.6);
+    --frosted-filter:blur(12px);
+}
+[data-theme="light"]{
+    --bg-primary:#f2f2f7;
+    --bg-secondary:#fff;
+    --bg-tertiary:#e5e5ea;
+    --bg-card:rgba(255,255,255,.7);
+    --card-bg:rgba(255,255,255,.9);
+    --card-shadow:0 4px 20px rgba(0,0,0,.08);
+    --text-primary:#000;
+    --text-secondary:#3a3a3c;
+    --text-muted:#8e8e93;
+    --separator:rgba(60,60,67,.2);
+    --rule:rgba(60,60,67,.25);
+    --border-color:rgba(60,60,67,.2);
+    --input-bg:#fff;
+    --input-border:rgba(60,60,67,.25);
+    --input-focus-ring:rgba(0,122,255,.2);
+    --frosted-bg:rgba(255,255,255,.6);
+    --frosted-filter:blur(12px);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg-primary);
+    color:var(--text-primary);
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    transition:background .3s,color .3s;
+    padding:56px 12px calc(78px + env(safe-area-inset-bottom));
+}
+
+/* ============ 顶部标题 ============ */
+.app-header{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    z-index:50;
+    padding:12px 16px;
+    background:var(--frosted-bg);
+    backdrop-filter:var(--frosted-filter);
+    -webkit-backdrop-filter:var(--frosted-filter);
+    border-bottom:1px solid var(--separator);
+}
+.app-header h1{
+    margin:0;
+    font-size:18px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.badge{
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:999px;
+    background:var(--accent-blue);
+    color:#fff;
+    font-weight:600;
+}
+
+/* ============ 视图切换 ============ */
+.view-container{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;max-width:800px;width:100%;margin:0 auto;padding-top:8px}
+.app-view{display:none;animation:fadeIn .25s ease}
+.app-view.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ============ 卡片/面板 ============ */
+.panel{
+    background:var(--card-bg);
+    border-radius:16px;
+    padding:14px;
+    margin-bottom:12px;
+    box-shadow:var(--card-shadow);
+    border:1px solid var(--separator);
+}
+h2,h3{margin:0 0 10px;font-size:15px}
+h3{font-size:14px}
+
+/* ============ 智能提示卡片 ============ */
+.smart-card{
+    background:linear-gradient(135deg,rgba(10,132,255,.15),rgba(175,82,222,.12));
+    border-left:4px solid var(--accent-blue);
+    border-radius:12px;
+    padding:12px 14px;
+    margin-bottom:12px;
+    font-size:13px;
+}
+.smart-card p{margin:0 0 8px;line-height:1.5}
+.smart-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ============ 环境状态条 ============ */
+.env-status{
+    position:fixed;
+    top:52px;
+    left:12px;
+    right:12px;
+    z-index:40;
+    font-size:12px;
+    padding:8px 12px;
+    border-radius:10px;
+    text-align:center;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+}
+.env-status.success{background:rgba(48,209,88,.14);color:var(--accent-green);border:1px solid rgba(48,209,88,.25)}
+.env-status.error{background:rgba(255,69,58,.14);color:var(--accent-red);border:1px solid rgba(255,69,58,.25)}
+.env-status.warn{background:rgba(255,159,10,.14);color:var(--accent-orange);border:1px solid rgba(255,159,10,.25)}
+
+/* ============ 底部导航 ============ */
+.bottom-nav{
+    position:fixed;
+    bottom:max(12px,env(safe-area-inset-bottom));
+    left:12px;
+    right:12px;
+    display:grid;
+    grid-template-columns:1fr 1fr .6fr 1fr 1fr;
+    gap:6px;
+    padding:10px;
+    background:var(--frosted-bg);
+    backdrop-filter:var(--frosted-filter);
+    -webkit-backdrop-filter:var(--frosted-filter);
+    border-radius:20px;
+    box-shadow:0 4px 20px rgba(0,0,0,.2);
+    z-index:100;
+    border:1px solid var(--separator);
+}
+.nav-item{
+    background:none;
+    border:none;
+    color:var(--text-secondary);
+    font-size:12px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    padding:8px 4px;
+    border-radius:14px;
+    cursor:pointer;
+    transition:background .2s,color .2s;
+}
+.nav-item.active{color:var(--accent-blue);background:rgba(10,132,255,.12)}
+.nav-item span{font-size:20px;line-height:1}
+.nav-version{letter-spacing:2px}
+.nav-version .version-char{display:inline-block;font-size:12px}
+
+/* ============ 按钮 ============ */
+.btn{background:var(--accent-blue);border:none;color:white;padding:9px 14px;border-radius:12px;cursor:pointer;margin:3px 2px;font-size:14px;min-height:44px;transition:opacity 0.2s,transform 0.15s cubic-bezier(0.25,0.46,0.45,0.94);font-weight:600}
+.btn:hover{opacity:0.85}
+.btn:active{transform:scale(0.97)}
+.btn.warn{background:var(--accent-orange)}
+.btn.danger{background:var(--accent-red)}
+.btn.secondary{background:var(--bg-tertiary);color:var(--text-primary);border:none}
+.btn.small{padding:5px 10px;font-size:12px;min-height:36px}
+.btn:disabled{background:var(--text-muted);cursor:not-allowed;opacity:0.6;transform:none;filter:saturate(.7)}
+[data-theme="light"] .btn:disabled{background:#c7c7cc;color:#aeaeb2;opacity:1}
+
+/* ============ 输入框 ============ */
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+input[type="text"],select{background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);padding:9px 11px;border-radius:10px;outline:none;font-size:14px;min-height:44px;transition:border-color 0.2s,box-shadow 0.2s;color-scheme:dark}
+input[type="text"]:focus,select:focus{border-color:var(--accent-blue);box-shadow:0 0 0 3px var(--input-focus-ring)}
+select option{background:var(--input-bg);color:var(--text-primary)}
+
+.tip{color:var(--text-muted);font-size:12px;margin-top:6px;line-height:1.5}
+.divider{height:1px;background:var(--separator);margin:16px 0}
+.danger-text{color:var(--accent-red)}
+.status-badge{font-size:11px;padding:3px 8px;border-radius:6px;background:var(--bg-tertiary);color:var(--text-secondary)}
+
+/* ============ 帮助折叠 ============ */
+.help-toggle{font-size:12px;color:var(--accent-blue);cursor:pointer;user-select:none;font-weight:normal}
+.help-content{display:none;background:var(--card-bg);padding:12px;border-radius:12px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--text-secondary);box-shadow:var(--card-shadow)}
+.help-content ol{padding-left:20px;margin:0}
+.help-content li{margin-bottom:6px}
+.help-content.show{display:block}
+.help-content code{background:#000;color:var(--accent-green);padding:3px 8px;border-radius:8px;display:block;margin:6px 0;white-space:nowrap;overflow-x:auto}
+
+/* ============ 子区块 ============ */
+.sub-section{margin-top:12px;padding-top:12px;border-top:1px dashed var(--separator)}
+/* ============ 弹窗 ============ */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:999;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-mask.show{display:flex}
+.modal-box{background:var(--card-bg);border-radius:16px;padding:20px;max-width:400px;width:100%;max-height:80vh;display:flex;flex-direction:column;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+.modal-content{overflow-y:auto;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.modal-title{font-size:16px;margin-bottom:12px;color:var(--text-primary);font-weight:600;display:flex;align-items:center}
+.modal-content{font-size:14px;line-height:1.6;color:var(--text-secondary);margin-bottom:16px;white-space:pre-line}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+
+/* ============ 主题切换按钮 ============ */
+.theme-toggle{position:fixed;top:12px;right:12px;width:40px;height:40px;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:none;border-radius:999px;padding:0;cursor:pointer;color:var(--text-primary);font-size:18px;z-index:100;transition:background 0.3s;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.theme-toggle:hover{background:var(--bg-tertiary)}
+
+/* ============ 上传悬浮按钮 ============ */
+.upload-fab{position:fixed;top:58px;right:12px;width:40px;height:40px;background:var(--accent-orange,#ff9f0a);border:none;border-radius:999px;padding:0;cursor:pointer;color:#fff;font-size:20px;z-index:100;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(255,159,10,0.3);transition:background 0.3s,transform 0.2s}
+.upload-fab:hover{background:#e08f09;transform:scale(1.1)}
+.upload-fab:active{transform:scale(0.95)}
+@media (max-width:600px){.upload-fab{top:54px;right:10px;width:38px;height:38px;font-size:18px}}
+
+/* ============ 上传对话框 ============ */
+ .upload-dialog{max-width:480px;max-height:90vh;display:flex;flex-direction:column}
+ .upload-body{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0 4px}
+ .upload-file-row{display:flex;align-items:center;margin:4px 0}
+.upload-meta-row input{font-size:12px}
+.upload-result.success{background:rgba(48,209,88,0.1);color:var(--accent-green);border:1px solid rgba(48,209,88,0.2)}
+.upload-result.error{background:rgba(255,69,58,0.1);color:var(--accent-red);border:1px solid rgba(255,69,58,0.2)}
+.upload-history-section{border-top:1px solid var(--rule);margin-top:8px;padding-top:8px}
+.upload-history-title{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.upload-history-list{max-height:200px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.upload-history-item{padding:6px 8px;border-radius:6px;margin-bottom:4px;background:var(--bg-card,rgba(255,255,255,0.03))}
+.upload-history-item:hover{background:var(--bg-tertiary)}
+.upload-history-name{font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-history-meta{display:flex;gap:8px;font-size:10px;color:var(--text-muted);margin-top:2px}
+.upload-history-type{background:rgba(255,159,10,0.18);color:var(--accent-orange);padding:0 5px;border-radius:3px;font-size:9px;font-weight:600}
+
+/* ============ 响应式 ============ */
+@media (max-width:600px){
+    body{padding:56px 10px calc(78px + env(safe-area-inset-bottom))}
+    .custom-row input,.custom-row select{flex:1;min-width:120px}
+    .mode-device-row{grid-template-columns:1fr}
+    .device-connect-row{justify-content:flex-start}
+    .btn{min-height:48px;font-size:15px}
+    h1{font-size:20px}
+    .theme-toggle{top:10px;right:10px;width:38px;height:38px;padding:0}
+    .report-grid{grid-template-columns:1fr}
+    .bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));grid-template-columns:1fr 1fr 0.5fr 1fr 1fr;gap:4px;padding:8px}
+    .nav-item{font-size:11px;padding:6px 4px}.nav-item span{font-size:16px}
+}
+/* ============ 上传弹窗品牌型号输入框 ============ */
+.upload-brand-row { display:flex; gap:8px; margin:8px 0; }
+.upload-brand-row input { flex:1; min-width:0; padding:10px 12px; border:2px solid var(--accent-orange); border-radius:10px; background:var(--input-bg); color:var(--text-primary); font-size:13px; outline:none; }
+.upload-brand-row input:focus { border-color:var(--accent-blue); box-shadow:0 0 0 3px var(--input-focus-ring); }
+.upload-brand-row input::placeholder { color:var(--text-muted); font-size:12px; }
+
+/* ============ 第二阶段新增工具类 ============ */
+
+/* 按钮颜色变体 */
+.btn-primary{background:var(--accent-blue,#409eff);color:#fff}
+.btn-success{background:var(--accent-green,#67c23a);color:#fff}
+.btn-purple{background:var(--accent-purple,#a855f7);color:#fff}
+.btn-primary:hover,.btn-success:hover,.btn-purple:hover{opacity:0.85}
+
+/* 区块标题 */
+.section-title{font-size:13px}
+
+/* 步骤计数 */
+.step-count{font-size:11px;color:var(--text-muted)}
+
+/* 工作台控制行 */
+.wb-control-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+
+/* 工作台预览操作行 */
+.wb-preview-actions{display:flex;gap:6px;margin-bottom:6px}
+
+/* 方案管理弹窗 */
+.scheme-panel-title{margin-top:0;font-size:15px}
+.scheme-panel-close{text-align:center;margin-top:12px}
+
+/* 上传弹窗关闭按钮 */
+.modal-close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#ff453a;margin-left:auto;padding:0 4px;line-height:1}
+
+/* 上传文件信息 */
+.upload-file-info{font-size:11px;color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-select-btn{white-space:nowrap;flex-shrink:0}
+
+/* 上传刷新按钮 */
+.upload-refresh-btn{background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);font-size:11px;cursor:pointer;border-radius:4px;padding:2px 8px;line-height:1.4}
+
+/* 强调链接 */
+.accent-link{color:var(--accent-orange,#ff9f0a)}
+
+/* 复制源码按钮 */
+.btn-copy-source{font-size:11px;padding:3px 10px}
+
+/* 通用布局工具 */
+.mb-6{margin-bottom:6px}
+
+/* ROM 列表项 */
+.rom-item-body{display:flex;flex-direction:column;gap:2px;width:100%}
+.rom-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rom-item-meta{display:flex;align-items:center;gap:6px}
+.rom-type-badge{font-size:10px;padding:1px 5px;border-radius:3px;color:#fff}
+.rom-select-btn{font-size:11px;padding:2px 8px}
+.rom-select-btn.active{background:var(--accent-green);color:#fff;border-color:var(--accent-green)}
+
+/* 版本日志 */
+.ver-date{font-weight:400;color:var(--text-muted);font-size:12px}
+.ver-current-tag{font-size:10px;color:var(--accent-green);font-weight:400;margin-right:6px}
+
+/* 上传空提示 */
+.upload-empty-tip{text-align:center;padding:24px 12px;color:var(--text-muted);font-size:12px}
+
+/* 方案列表 */
+.scheme-empty-tip{text-align:center;color:var(--text-muted);padding:20px}
+.scheme-name{font-size:13px}
+.scheme-meta{font-size:11px;color:var(--text-muted)}
+
+/* 脚本查看器 */
+.script-viewer-box{background:#0d1117;border:1px solid #30363d;border-radius:12px;width:92%;max-width:680px;box-shadow:0 8px 32px rgba(0,0,0,0.4);margin:0 auto;color:#c9d1d9}
+.script-viewer-header{padding:12px 16px;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#161b22;border-radius:12px 12px 0 0;z-index:1}
+.script-viewer-title{font-size:14px;color:#c9d1d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85%}
+.script-viewer-close{background:none;border:none;font-size:18px;cursor:pointer;color:#8b949e;padding:0 6px;flex-shrink:0}
+.script-viewer-body{margin:0;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:#c9d1d9;background:#0d1117;max-height:65vh;overflow:auto}
+.code-line-num{display:inline-block;width:36px;text-align:right;color:#484f58;user-select:none;margin-right:10px;border-right:1px solid #21262d;padding-right:8px;font-size:11px}
+.code-comment{color:#8b949e}
+.code-var{color:#79c0ff}
+.code-var-orange{color:#ffa657}
+.code-string{color:#a5d6ff}
+.code-cmd{color:#3fb950;font-weight:bold}
+
+/* 上传 Toast */
+.upload-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#f5f5f7;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;max-width:80%;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.3s}
+
+/* ============ 从原始版本补回的缺失组件样式 ============ */
+
+
+h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-0.02em}
+
+@keyframes viewIn{from{opacity:.3;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.nav-item:active{transform:scale(0.92);background:rgba(255,255,255,0.06)}
+
+.nav-item::after{content:'';position:absolute;right:-2px;top:25%;height:50%;width:1px;background:var(--separator)}
+
+.nav-item:last-child::after{display:none}
+
+.nav-item.active:active{background:rgba(48,209,88,0.1)}
+
+.nav-item.active::after{right:0}
+
+.nav-item.active::before{content:'';position:absolute;bottom:2px;left:20%;width:60%;height:2px;border-radius:1px;background:var(--accent-green)}
+
+.global-status{position:fixed;top:12px;left:12px;right:58px;z-index:100;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:none;color:var(--accent-green);border-radius:20px;padding:7px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:40px;box-shadow:0 2px 12px rgba(0,0,0,0.15);cursor:default}
+
+.global-status.collapsed{justify-content:flex-start;border-radius:20px}
+
+.global-status .global-status-compact{display:none}
+
+.global-status.collapsed .pulse-dot,.global-status.collapsed #globalStatusText{display:inline-block}
+
+.global-status.collapsed .global-status-compact{display:none}
+
+.global-status #globalStatusText{overflow:hidden;text-overflow:ellipsis}
+
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 0 0 rgba(48,209,88,0.5);animation:pulse 1.8s infinite}
+
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
+
+.smart-card,.task-summary{background:var(--card-bg);border:none;border-radius:12px;padding:16px;margin:10px 0;box-shadow:var(--card-shadow)}
+
+[data-theme="light"] .smart-card,[data-theme="light"] .task-summary{background:var(--card-bg);box-shadow:var(--card-shadow)}
+
+.smart-card h4,.task-summary h4{color:var(--accent-blue);font-size:14px;margin-bottom:6px;font-weight:600}
+
+.smart-card p,.task-summary p{color:var(--text-secondary);font-size:13px;line-height:1.5}
+
+.metric-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+.metric{background:var(--bg-tertiary);border:none;border-radius:999px;padding:5px 9px;font-size:12px;color:var(--text-secondary)}
+
+.compact-safety{padding:0;overflow:hidden}
+
+.compact-safety summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;color:var(--accent-green);font-size:13px;font-weight:700}
+
+.compact-safety summary::-webkit-details-marker{display:none}
+
+.compact-safety summary span:last-child{color:var(--text-secondary);font-size:12px;font-weight:600;text-align:right}
+
+.compact-detail{border-top:1px solid var(--separator);padding:10px 12px}
+
+.compact-detail h4{margin-top:8px}
+
+.compact-detail>div:first-child h4{margin-top:0}
+
+.step-list.collapsed{display:none}
+
+.report-card{border:none;border-radius:12px;padding:12px;margin:10px 0;background:var(--bg-tertiary);display:none;box-shadow:var(--card-shadow)}
+
+.report-card.ok{background:rgba(48,209,88,0.08)}
+.report-card.err{background:rgba(255,69,58,0.08)}
+
+.report-card h4{margin-bottom:8px;color:var(--accent-blue)}
+.report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.report-metric{border:none;border-radius:10px;padding:8px;background:var(--card-bg);font-size:12px;box-shadow:var(--card-shadow)}
+.report-metric span{display:block;color:var(--text-muted);font-size:11px;margin-bottom:3px}
+.report-detail{white-space:pre-wrap;margin-top:8px;color:var(--text-secondary);font-size:12px;line-height:1.5}
+
+.danger-fold{border:none;border-radius:12px;padding:10px;margin-top:12px;background:rgba(255,69,58,0.08)}
+
+.danger-fold summary{cursor:pointer;color:var(--accent-red);font-weight:700}
+
+.cmd-template-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+
+.cmd-template{border:none;background:var(--bg-tertiary);color:var(--text-primary);border-radius:999px;padding:7px 10px;font-size:12px;cursor:pointer}
+
+.env-status.ok{background:rgba(48,209,88,0.15);color:#30d158}
+
+
+/* ============ 进度条 ============ */
+.progress-container{background:var(--bg-tertiary);border-radius:14px;height:28px;position:relative;margin:12px 0;overflow:hidden;border:none}
+
+.progress-bar{background:linear-gradient(90deg,var(--accent-blue),var(--accent-green));height:100%;border-radius:14px;transition:width 0.3s ease;width:0%}
+
+.progress-text{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-primary);font-weight:600}
+
+.progress-label{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-secondary)}
+
+
+/* ============ 步骤列表 ============ */
+.step-list{max-height:280px;overflow-y:auto;margin:10px 0;border:none;border-radius:12px;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+.step-item{padding:12px 16px;border-bottom:1px solid var(--separator);display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+
+.step-item:last-child{border-bottom:none}
+
+.step-item .idx{color:var(--text-muted);min-width:24px;font-weight:600}
+
+.step-item .type{padding:3px 8px;border-radius:6px;font-size:11px;color:white;flex-shrink:0;font-weight:600}
+
+.type-flash{background:var(--accent-blue)}
+
+.type-erase{background:var(--accent-orange)}
+
+.type-set{background:var(--accent-purple)}
+
+.type-reboot{background:var(--accent-green)}
+
+.type-devices{background:#5e5ce6}
+
+.type-other{background:var(--text-muted)}
+
+.type-getvar{background:#5e5ce6}
+
+.step-item .del-btn{margin-left:auto;background:var(--accent-red);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:12px;cursor:pointer;transition:opacity 0.2s}
+
+.step-item .del-btn:hover{opacity:0.8}
+
+.step-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;white-space:nowrap}
+
+.badge-avb{background:#ff9f0a;color:#fff}
+
+.badge-cow{background:#30d158;color:#fff}
+
+.badge-cond{background:#8e8e93;color:#fff}
+
+.badge-loop{background:#bf5af2;color:#fff}
+
+
+/* ============ 文件列表 ============ */
+.file-list{max-height:180px;overflow-y:auto;border:none;border-radius:12px;margin:8px 0;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+.compact-rom-list{max-height:120px;margin:6px 0 0;overflow-y:auto;border:none;background:transparent;border-radius:0;box-shadow:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+.rom-section-desc{font-size:11px;color:var(--text-muted);padding:2px 0 4px;letter-spacing:0.3px}
+
+.rom-list-header{display:flex;align-items:center;gap:6px;padding:4px 0 2px;font-size:12px}
+
+.rom-list-title{font-weight:600;color:var(--text-primary)}
+
+.rom-list-count{color:var(--text-muted);font-size:11px}
+
+.rom-list-header .btn{margin-left:auto}
+
+.file-item{padding:8px 12px;border-bottom:1px solid var(--separator);display:flex;justify-content:space-between;align-items:center;font-size:13px}
+
+.file-item:last-child{border-bottom:none}
+
+.file-item .del-btn{background:var(--accent-red);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer}
+
+.file-item .pick-btn{background:var(--accent-green);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-right:4px}
+
+
+/* ============ 自定义项 ============ */
+.custom-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+
+.custom-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--card-bg);border-radius:10px;margin:6px 0;font-size:13px;border:none;box-shadow:var(--card-shadow)}
+
+.custom-item button{padding:4px 10px;margin-left:6px}
+
+
+/* ============ 日志区域 ============ */
+.log-box{background:#000;color:var(--accent-green);padding:12px;border-radius:12px;height:280px;overflow-y:auto;font-family:'Fira Code','Consolas',monospace;font-size:12px;white-space:nowrap;border:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+.log-box div{line-height:1.5}
+
+.log-box .err-line{color:var(--accent-red)}
+
+.log-box .tip-line{color:var(--accent-orange)}
+
+.log-box .ok-line{color:var(--accent-green)}
+
+.log-box .info-line{color:var(--accent-blue)}
+
+
+/* ============ 自定义命令 ============ */
+.command-box{background:var(--card-bg);border:none;border-radius:12px;padding:12px;margin-top:12px;box-shadow:var(--card-shadow)}
+
+.command-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.command-prefix{background:#000;color:var(--accent-green);padding:10px 12px;border-radius:10px;font-family:'Fira Code','Consolas',monospace;font-size:13px}
+
+.command-input input{flex:1;min-width:220px;font-family:'Fira Code','Consolas',monospace}
+
+
+/* ============ 模块状态框 ============ */
+.module-status{background:var(--card-bg);border:none;border-left:3px solid var(--separator);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:12px;color:var(--text-secondary);line-height:1.45;box-shadow:var(--card-shadow)}
+
+.module-status.info{border-left-color:var(--accent-blue);color:var(--accent-blue);background:rgba(10,132,255,0.06)}
+
+.module-status.ok{border-left-color:var(--accent-green);color:var(--accent-green);background:rgba(48,209,88,0.06)}
+
+.module-status.warn{border-left-color:var(--accent-orange);color:var(--accent-orange);background:rgba(255,159,10,0.06)}
+
+.module-status.err{border-left-color:var(--accent-red);color:var(--accent-red);background:rgba(255,69,58,0.06)}
+
+.module-progress{background:var(--bg-tertiary);border:none;border-radius:12px;height:24px;position:relative;overflow:hidden;margin:8px 0;display:none}
+
+.module-progress .module-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent-blue),var(--accent-green));transition:width .25s ease;border-radius:12px}
+
+.module-progress .module-progress-text{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-primary);font-weight:600}
+
+
+
+
+/* ============ 错误诊断卡片 ============ */
+.error-card{background:#3a1a1a;border:none;border-radius:12px;padding:12px;margin:8px 0}
+
+.error-card .error-title{color:var(--accent-red);font-weight:600;margin-bottom:8px;font-size:14px}
+
+.error-card .diagnosis-box{background:rgba(0,0,0,0.2);border-radius:10px;padding:10px;margin-top:8px}
+
+.error-card .diagnosis-box strong{color:var(--accent-orange)}
+
+.error-card .diagnosis-box p{color:var(--text-primary);margin-top:4px;line-height:1.5}
+/* ===== css/views/device.css ===== */
+/* ============ 视图 - 设备连接 ============ */
+.run-mode-panel { padding:12px; }
+.run-mode-head { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px; }
+.run-mode-head h3 { margin:0; }
+.mode-device-row { display:block; }
+.run-mode-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.run-mode-tab { background:var(--bg-tertiary); border:none; color:var(--text-primary); border-radius:999px; padding:8px 14px; cursor:pointer; font-size:13px; font-weight:600; text-align:center; transition:background .2s,color .2s; }
+.run-mode-tab.active { color:var(--accent-green); background:rgba(48,209,88,0.12); }
+.device-connect-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.device-connect-row select { order:1; min-width:0; max-width:100%; flex:1 1 0; }
+.device-connect-row .slot-badge { order:3; white-space:nowrap; }
+.device-connect-row #querySlotBtn { display:none; }
+.device-connect-row #checkDeviceBtn { order:2; flex:0 0 auto; width:auto; margin-top:0; white-space:nowrap; }
+.mode-more { font-size:12px; color:var(--accent-blue); cursor:pointer; user-select:none; }
+.run-mode-detail { display:none; margin-top:10px; }
+.run-mode-detail.show { display:block; }
+.run-mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:8px 0; }
+.run-mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:10px; box-shadow:var(--card-shadow); }
+.run-mode-card h4 { font-size:13px; color:var(--accent-blue); margin-bottom:5px; font-weight:600; }
+.run-mode-card p { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+.run-mode-card .mode-check { display:inline-block; margin-top:6px; font-size:11px; color:var(--accent-green); }
+.mode-status-compact { margin:8px 0 0; padding:8px 10px; font-size:12px; border-radius:10px; }
+#modeStatus { display:none; }
+body[data-run-mode="webusb"] .webusb-highlight { border-left-color:var(--accent-green); }
+
+/* ===== css/views/batch.css ===== */
+/* ============ 视图 - 线刷 ============ */
+.batch-page h3 { margin:8px 0 6px; }
+.batch-pack-card { border:none; border-radius:12px; background:var(--card-bg); padding:10px; margin:8px 0; box-shadow:var(--card-shadow); }
+.batch-pack-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:13px; font-weight:700; color:var(--accent-blue); }
+.batch-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; align-items:center; }
+.batch-grid select { min-width:0!important; width:100%; }
+.batch-inline-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:7px; align-items:center; margin:6px 0; }
+.batch-select-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:7px; align-items:center; margin:6px 0; }
+.batch-inline-row select,.batch-select-row select { min-width:0!important; width:100%; }
+.batch-action-row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-top:7px; }
+.batch-action-row .btn { flex:0 0 auto; }
+.batch-summary-compact { padding:9px 10px; margin:8px 0; }
+.batch-summary-compact h4 { display:none; }
+.batch-summary-compact p { font-size:12px; line-height:1.35; margin:0; }
+.batch-summary-compact .metric-row { margin-top:5px; }
+.batch-summary-compact .smart-actions { margin-top:6px; }
+.class-info-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:4px 0 6px; min-height:22px; }
+.class-badge { display:inline-block; font-size:10px; padding:1px 7px; border-radius:4px; background:var(--accent-blue); color:#fff; font-weight:600; letter-spacing:.3px; }
+.class-name-badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:4px; background:var(--bg-tertiary); color:var(--text-primary); }
+.class-legacy { background:var(--text-muted); }
+.class-linear { background:#5e5ce6; }
+.class-conditional { background:#bf5af2; }
+.class-function { background:#ff9f0a; }
+.class-payload { background:#30d158; }
+.class-pixel_flash_all { background:#007aff; }
+.class-miui_fastboot { background:#ff6482; }
+.class-dynamic_partition { background:#64d2ff; color:#000; }
+.conf-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:600; }
+.conf-certain { background:#30d158; color:#fff; }
+.conf-high { background:#34c759; color:#fff; }
+.conf-mid { background:#ff9f0a; color:#fff; }
+.conf-low { background:#ff453a; color:#fff; }
+.verify-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:600; }
+.verify-pass { background:#30d158; color:#fff; }
+.verify-fail { background:#ff453a; color:#fff; }
+.verify-pending { background:#ff9f0a; color:#fff; }
+.resource-note-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(142,142,147,0.2); color:var(--text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.source-badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(90,200,250,0.15); color:var(--accent-blue); font-family:monospace; }
+.batch-exec-bar { display:grid; grid-template-columns:1fr; gap:6px; align-items:stretch; margin-top:8px; }
+.batch-exec-buttons { display:grid; grid-template-columns:1fr auto; gap:7px; }
+.batch-exec-buttons .btn.warn { min-width:112px; }
+.batch-exec-bar #batchStatus { margin:0; min-height:0; white-space:normal; word-break:normal; overflow-wrap:break-word; }
+.batch-exec-bar #batchTip { margin:0; color:var(--accent-red); font-size:12px; line-height:1.35; }
+.slot-badge { background:var(--bg-tertiary); color:var(--accent-green); padding:3px 8px; border-radius:6px; font-size:12px; font-weight:600; }
+body[data-run-mode="webusb"] .backend-mode-only { display:none!important; }
+body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
+/* ===== css/views/version.css ===== */
+/* ============ 视图 - 版本信息 ============ */
+.version-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.version-card { background:var(--card-bg); border-radius:12px; padding:12px; box-shadow:var(--card-shadow); margin-bottom:12px; }
+.version-row { display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap; }
+.version-label { font-size:13px; color:var(--text-muted); min-width:60px; }
+.version-number { font-size:16px; font-weight:700; color:var(--accent-blue); }
+.version-changelog { font-size:12px; line-height:1.6; }
+.ver-item { border-bottom:1px solid var(--separator); }
+.ver-item:last-child { border-bottom:none; }
+.ver-current { background:rgba(48,209,88,0.04); }
+.ver-header { display:flex; align-items:center; gap:6px; padding:10px 8px; cursor:pointer; user-select:none; font-size:13px; font-weight:600; color:var(--text-primary); }
+.ver-header:hover { background:var(--bg-tertiary); border-radius:8px; }
+.ver-arrow { font-size:14px; color:var(--text-muted); transition:transform 0.2s; margin-left:auto; }
+.ver-arrow.open { transform:rotate(90deg); }
+.ver-body { display:none; padding:0 8px 8px; font-size:12px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap; }
+.ver-body.open { display:block; }
+
+/* ===== css/views/tools.css ===== */
+/* ============ 视图 - 工具箱 ============ */
+.mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:10px 0; }
+.mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:12px; box-shadow:var(--card-shadow); }
+.mode-card h4 { font-size:14px; color:var(--accent-blue); margin-bottom:6px; font-weight:600; }
+.mode-card p { font-size:12px; color:var(--text-secondary); line-height:1.6; }
+.mode-card .mode-tag { display:inline-block; margin-top:8px; font-size:11px; color:var(--accent-green); background:rgba(48,209,88,0.1); border:none; border-radius:999px; padding:3px 8px; }
+.tool-group { border:none; border-radius:12px; padding:8px; margin:8px 0; background:var(--card-bg); box-shadow:var(--card-shadow); }
+.tool-group h3 { margin-top:0; }
+.tool-group.danger { background:rgba(255,69,58,0.06); }
+.tool-group.warn { background:rgba(255,159,10,0.06); }
+.reboot-top-row { display:grid; grid-template-columns:1fr 82px 82px; gap:7px; align-items:center; margin-bottom:7px; }
+.reboot-top-row h3 { margin:0!important; white-space:nowrap; }
+.reboot-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.reboot-row .btn { width:100%; min-width:0; padding-left:4px; padding-right:4px; }
+.slot-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.slot-title-row h3 { margin:0; }
+.slot-current-badge { font-size:12px; color:var(--accent-green); border:none; background:rgba(48,209,88,0.12); border-radius:999px; padding:3px 8px; white-space:nowrap; }
+.bl-status-badge { font-size:12px; border:none; background:var(--bg-tertiary); border-radius:999px; padding:3px 8px; white-space:nowrap; color:var(--text-secondary); }
+.bl-status-badge.ok { color:var(--accent-green); background:rgba(48,209,88,0.12); }
+.bl-status-badge.warn { color:var(--accent-orange); background:rgba(255,159,10,0.12); }
+.button-hint { font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+.empty-state { border:none; border-radius:12px; padding:16px 12px; text-align:center; color:var(--text-muted); font-size:12px; line-height:1.45; background:var(--bg-tertiary); }
+/* ===== css/views/workbench.css ===== */
+/* ============ 视图 - 工作台 ============ */
+.wb-step { display:flex; align-items:center; gap:6px; padding:6px 8px; margin:4px 0; background:var(--bg-card,rgba(30,41,59,.8)); border-radius:6px; font-size:12px; border-left:3px solid var(--accent-blue,#409eff); }
+.wb-step[data-type="adb"] { border-left-color: #67c23a; }
+.wb-step[data-type="shell"] { border-left-color: #f59e0b; }
+.wb-step .wb-step-num { min-width:20px; color:var(--text-muted); font-size:11px; }
+.wb-step .wb-step-cmd { flex:1; word-break:break-all; color:#e2e8f0; }
+.wb-step .wb-step-actions { display:flex; gap:4px; }
+.wb-step .wb-step-actions button { padding:2px 8px; font-size:11px; border:none; border-radius:4px; cursor:pointer; }
+.wb-step .wb-run-btn { background:var(--accent-blue,#409eff); color:#fff; }
+.wb-step .wb-run-btn:disabled { background:#555; cursor:not-allowed; }
+.wb-step .wb-up-btn, .wb-step .wb-down-btn { background:#334155; color:#ccc; }
+.wb-step .wb-del-btn { background:#ef4444; color:#fff; }
+.wb-step .wb-status { font-size:11px; padding:1px 6px; border-radius:3px; }
+.wb-step .wb-status.pending { background:#334155; color:#94a3b8; }
+.wb-step .wb-status.running { background:#f59e0b22; color:#f59e0b; }
+.wb-step .wb-status.success { background:#22c55e22; color:#22c55e; }
+.wb-step .wb-status.failed { background:#ef444422; color:#ef4444; }
+.wb-qa-section { margin-bottom: 4px; }
+.wb-qa-tab { flex:1; padding: 6px 8px; border: 1px solid var(--border-color,rgba(100,116,139,.3)); border-radius: 8px; background: var(--bg-card,#1e293b); color: var(--text-muted); font-size: 12px; cursor: pointer; text-align: center; transition: all .2s; }
+.wb-qa-tab.active-fb { background: rgba(59,130,246,.2); color: #3b82f6; border-color: #3b82f6; font-weight: 600; }
+.wb-qa-tab.active-adb { background: rgba(34,197,94,.2); color: #22c55e; border-color: #22c55e; font-weight: 600; }
+.wb-qa-label { font-size: 11px; color: var(--text-muted); margin: 4px 0 2px; padding-left: 2px; }
+.wb-qa-category { font-size: 13px; font-weight: 600; margin: 8px 0 4px; padding: 4px 8px; border-radius: 6px; }
+.wb-qa-category.fb { background: rgba(59,130,246,.12); color: #3b82f6; border-left: 3px solid #3b82f6; }
+.wb-qa-category.adb { background: rgba(34,197,94,.12); color: #22c55e; border-left: 3px solid #22c55e; }
+.wb-qa-safe { border-left: 2px solid #22c55e; }
+.wb-qa-warn { border-left: 2px solid #f59e0b; }
+.wb-qa-danger { border-left: 2px solid #ef4444; }
+.wb-type-switch { display: flex; gap: 0; margin-bottom: 10px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color,rgba(100,116,139,.3)); }
+.wb-type-btn { flex: 1; padding: 6px 4px; font-size: 12px; border: none; background: var(--bg-card,rgba(30,41,59,.6)); color: #94a3b8; cursor: pointer; transition: all .15s; }
+.wb-type-btn.active { background: var(--accent-blue,#409eff); color: #fff; }
+.wb-type-btn:not(.active):hover { background: rgba(30,41,59,.9); }
+.wb-step-desc { font-size: 12px; color: #e2e8f0; line-height: 1.3; margin-bottom: 2px; }
+.wb-step-raw { font-size: 10px; color: #64748b; word-break: break-all; }
+.wb-step-risk { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; }
+.wb-step-risk.safe { background: #22c55e22; color: #22c55e; }
+.wb-step-risk.warn { background: #f59e0b22; color: #f59e0b; }
+.wb-step-risk.danger { background: #ef444422; color: #ef4444; }
+.wb-step-risk.data-loss { background: #dc262622; color: #dc2626; }
+#wbSchemePanel { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
+#wbSchemePanel.show { display: flex; }
+.wb-scheme-card { background:var(--bg-card,#1e293b); border-radius:10px; padding:16px; max-width:90vw; width:360px; max-height:70vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.wb-scheme-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(100,116,139,.2); }
+.wb-scheme-item:last-child { border-bottom: none; }
+</style>
 </head>
 <body>
 
@@ -136,9 +851,6 @@ window.addEventListener('unhandledrejection', function(e) {
 <button class="btn secondary small" id="refreshBatBtn">刷新脚本</button>
 <select id="batSelect"><option value="">选择刷机脚本</option></select>
 <button class="btn small" id="importBatBtn" disabled>解析脚本</button>
-</div>
-<div class="batch-select-row" style="margin-top:2px;display:block">
-<input type="text" id="batExtraArgs" placeholder="带参数解析默认无，如需请填写" style="width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color);box-sizing:border-box" title="BAT脚本%*占位符的展开值">
 </div>
 <div style="margin-top:6px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
   解析失败？<a href="#" data-action="quick-upload-script" class="accent-link">📤 上传此脚本样本</a> 帮助改进天树引擎
@@ -266,6 +978,25 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="versionUpdateTip" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
 </div>
 <div class="sub-section">
+<h3 style="font-size:13px">⚡ 配置热更新</h3>
+<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">修改 runtime/ 目录下的配置文件后，点击下方按钮立即刷新。不点击也会在下次上传脚本时自动生效。</p>
+<div class="version-row">
+<button class="btn secondary small" id="hydraReloadBtn" data-action="hydra-reload">🔄 刷新配置</button>
+<button class="btn secondary small" id="hydraStatusBtn" data-action="hydra-status">📊 查看状态</button>
+</div>
+<div id="hydraReloadTip" style="font-size:12px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap"></div>
+</div>
+<div class="sub-section">
+<h3 style="font-size:13px">☁️ 服务器配置同步</h3>
+<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">从配置服务器拉取最新的分类规则、VIP解析器等配置。需要网络连接。</p>
+<div class="version-row" style="flex-wrap:wrap;gap:6px">
+<input type="text" id="configServerUrl" placeholder="http://81.68.84.205:12345" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-card);color:var(--text)">
+<button class="btn secondary small" id="configCheckBtn" data-action="config-check">🔍 检查更新</button>
+<button class="btn small btn-success" id="configSyncBtn" data-action="config-sync">⬇️ 同步配置</button>
+</div>
+<div id="configSyncTip" style="font-size:12px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap"></div>
+</div>
+<div class="sub-section">
 <h3 style="font-size:13px">📜 更新日志</h3>
 <div id="versionChangelog" class="version-changelog"></div>
 </div>
@@ -386,10 +1117,18 @@ window.addEventListener('unhandledrejection', function(e) {
 <div class="custom-row">
 <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">镜像来源：</label>
 <select id="wbImgSource" style="width:100px">
+<option value="file" selected>选择文件</option>
 <option value="none">无镜像</option>
 <option value="rom">线刷包镜像</option>
-<option value="custom">自定义绝对路径</option>
+<option value="custom">自定义路径</option>
 </select>
+</div>
+<div id="wbImgFileRow">
+<div class="custom-row">
+<input type="file" id="wbImgFileInput" style="display:none">
+<button class="btn small" id="wbImgFileBtn" data-action="wb-pick-image-file">📁 选择文件</button>
+<span id="wbImgFileName" style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:60px">未选择文件</span>
+</div>
 </div>
 <div id="wbImgRomRow" style="display:none">
 <div class="custom-row">
@@ -399,7 +1138,7 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 <div id="wbImgCustomRow" style="display:none">
 <div class="custom-row">
-<input type="text" id="wbImgCustomPath" placeholder="镜像绝对地址，如 /sdcard/123456/image/boot.img" style="flex:1;min-width:100px">
+<input type="text" id="wbImgCustomPath" placeholder="输入镜像绝对路径，如 /sdcard/boot.img" style="flex:1;min-width:100px">
 </div>
 </div>
 <div class="custom-row">
@@ -506,26 +1245,30 @@ window.addEventListener('unhandledrejection', function(e) {
 <h3>关闭VBmeta校验</h3>
 <div class="row">
 <label>镜像来源：</label>
-<select id="vbmetaSource" style="width:100px">
-<option value="custom">自定义绝对路径</option>
+<select id="vbmetaSource">
+<option value="file" selected>直接选择镜像文件</option>
+<option value="custom">自定义镜像地址</option>
 <option value="rom">已解压刷机包</option>
 </select>
 </div>
-<div id="vbmetaRomRow" style="display:none">
+<div class="row" id="vbmetaFileRow">
+<input type="file" id="vbmetaFileInput" style="display:none">
+<button class="btn small" id="vbmetaFileBtn" data-action="vbmeta-pick-file">📁 选择文件</button>
+<span id="vbmetaFileName" style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:60px">未选择文件</span>
+</div>
+<div class="row" id="vbmetaCustomRow" style="display:none">
+<input type="text" id="vbmetaCustomPath" placeholder="输入镜像绝对路径，如 /sdcard/vbmeta.img" style="flex:1;min-width:120px">
+</div>
+<div class="row" id="vbmetaRomRow" style="display:none">
+<select id="vbmetaRomSelect" style="width:180px"><option value="">选择刷机包</option></select>
+</div>
 <div class="row">
-<select id="vbmetaRomSelect" style="min-width:120px"><option value="">选择已解压线刷包</option></select>
-<select id="vbmetaRomImgSelect" style="flex:1;min-width:180px"><option value="">选择镜像</option></select>
-</div>
-</div>
-<div id="vbmetaCustomRow">
-<div class="row">
-<input type="text" id="vbmetaSelect" style="flex:1;min-width:180px" placeholder="镜像绝对路径，如 /sdcard/123456/image/vbmeta.img">
-</div>
+<select id="vbmetaSelect" style="width:180px"><option value="">选择vbmeta镜像</option></select>
 </div>
 <div class="row">
 <button class="btn small warn" id="disableVbmetaBtn" disabled>执行关闭校验</button>
 </div>
-<p class="tip">选择「自定义绝对路径」手动输入镜像地址，或选择「已解压刷机包」从项目列表中选取镜像；工具会校验路径安全性并执行关闭校验。</p>
+<p class="tip">可直接选择文件、输入自定义路径或从刷机包选择镜像；设备连接后自动检测 vbmeta 校验状态。</p>
 <p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并选择 vbmeta 镜像。</p>
 </div>
 
@@ -660,8 +1403,10 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-<!-- 重构新增：安全 DOM 访问与模块初始化系统，必须在 state.js 之前加载 -->
 <script>
+'use strict';
+
+// ===== js/core/safe-dom.js =====
 // flash_tool/static/js/safe-dom.js
 // ============ 安全 DOM 访问层 ============
 // 目标：解决前端「稍微改动就崩溃」的核心问题。
@@ -835,8 +1580,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 })(window);
 
-</script>
-<script>
+// ===== js/core/module-system.js =====
 // flash_tool/static/js/module-system.js
 // ============ 轻量级模块注册与初始化系统 ============
 // 目标：替代按 script 标签顺序加载的脆弱方式，使各功能模块显式声明依赖，
@@ -978,8 +1722,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 })(window);
 
-</script>
-<script>
+// ===== js/core/state.js =====
 // flash_tool/static/js/state.js
 // ============ 应用状态（集中管理） ============
 let _savedMode;
@@ -1257,8 +2000,7 @@ Modules.register('state', [], function initStateModule() {
     console.log('[state] 应用状态模块已初始化');
     return true;
 });
-</script>
-<script>
+// ===== js/core/config.js =====
 // flash_tool/static/js/config.js
 // ============ 后端地址配置 ============
 // 部署到 GitHub Pages 时，在这里配置你的后端服务器地址
@@ -1300,8 +2042,7 @@ Modules.register('state', [], function initStateModule() {
         writeLog('后端地址已切换为：' + (url || '当前页面'), 'ok');
     };
 })();
-</script>
-<script>
+// ===== js/core/api.js =====
 // flash_tool/static/js/api.js
 // ============ WebSocket 连接 ============
 function updateEnvStatusConnection() {
@@ -1631,8 +2372,7 @@ Modules.register('api', [], async function initApiModule() {
     console.log('[api] API 层已就绪（超时保护已启用）');
     return { apiRequest, apiGet, apiPost, parseApiResponse };
 });
-</script>
-<script>
+// ===== js/core/utils.js =====
 // flash_tool/static/js/utils.js
 // ============ 通用辅助函数 ============
 
@@ -1714,8 +2454,7 @@ Modules.register('utils', [], function initUtilsModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/core/ui.js =====
 // flash_tool/static/js/ui.js
 // ============ 进度条 ============
 /**
@@ -2233,12 +2972,148 @@ function handleGlobalAction(e) {
                 if (rbBtn) rbBtn.click();
             }
             break;
+        case 'hydra-reload':
+            e.preventDefault();
+            hydraReload();
+            break;
+        case 'hydra-status':
+            e.preventDefault();
+            hydraStatus();
+            break;
+        case 'config-check':
+            e.preventDefault();
+            configCheckUpdate();
+            break;
+        case 'config-sync':
+            e.preventDefault();
+            configDoSync();
+            break;
     }
 }
 
-// ============ 模块初始化 ============
+// ============ 热更新操作 ============
+async function hydraReload() {
+    const tip = $('hydraReloadTip');
+    const btn = $('hydraReloadBtn');
+    if (tip) tip.textContent = '正在刷新配置...';
+    if (btn) { btn.disabled = true; btn.textContent = '刷新中...'; }
+    try {
+        const res = await apiPost('/api/hydra/reload');
+        if (res && res.success) {
+            if (tip) tip.textContent = '✅ 配置已刷新，下次上传脚本将使用新配置。';
+            showToast('配置刷新成功');
+        } else {
+            if (tip) tip.textContent = '❌ 刷新失败：' + (res?.error || '未知错误');
+            showToast('配置刷新失败');
+        }
+    } catch (err) {
+        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新配置'; }
+    }
+}
+
+async function hydraStatus() {
+    const tip = $('hydraReloadTip');
+    if (tip) tip.textContent = '正在查询状态...';
+    try {
+        const res = await apiGet('/api/hydra/status');
+        if (res && res.success && res.data) {
+            const d = res.data;
+            const lines = [];
+            lines.push('📋 配置状态：');
+            if (d.rules) {
+                lines.push(`  分类规则: ${d.rules.exists ? '✅ 已加载' : '⚠️ 未找到'} (BAT ${d.rules.bat_feature_count} 个特征, SH ${d.rules.sh_feature_count} 个特征)`);
+            }
+            if (d.vip) {
+                lines.push(`  VIP 映射: ${d.vip.registry_entries} 条`);
+            }
+            if (d.pipeline_loader) {
+                lines.push(`  管线覆写: ${d.pipeline_loader.cached_count} 个已缓存`);
+            }
+            if (tip) tip.textContent = lines.join('\n');
+        } else {
+            if (tip) tip.textContent = '❌ 查询失败：' + (res?.error || '未知错误');
+        }
+    } catch (err) {
+        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
+    }
+}
+
+// ============ 服务器配置同步 ============
+async function configCheckUpdate() {
+    const urlInput = $('configServerUrl');
+    const tip = $('configSyncTip');
+    const serverUrl = urlInput ? urlInput.value.trim() : '';
+    if (!serverUrl) {
+        if (tip) tip.textContent = '❌ 请先输入服务器地址';
+        return;
+    }
+    if (tip) tip.textContent = '正在检查服务器...';
+    try {
+        const res = await apiGet('/api/config/sync-status?server_url=' + encodeURIComponent(serverUrl));
+        if (res && res.success && res.data) {
+            const d = res.data;
+            if (d.success === false) {
+                if (tip) tip.textContent = '❌ ' + (d.msg || '连接失败');
+                return;
+            }
+            const lines = [];
+            lines.push('☁️ 服务器配置状态：');
+            lines.push(`  服务器版本: ${d.server_version || '未知'}`);
+            lines.push(`  本地版本: ${d.local_version || '未知'}`);
+            if (d.last_sync) lines.push(`  上次同步: ${d.last_sync}`);
+            if (d.has_update) {
+                lines.push('  ✅ 服务器有新配置，可以同步');
+            } else {
+                lines.push('  ✅ 本地已是最新');
+            }
+            if (tip) tip.textContent = lines.join('\n');
+        } else {
+            if (tip) tip.textContent = '❌ 检查失败：' + (res?.error || '未知错误');
+        }
+    } catch (err) {
+        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
+    }
+}
+
+async function configDoSync() {
+    const urlInput = $('configServerUrl');
+    const tip = $('configSyncTip');
+    const btn = $('configSyncBtn');
+    const serverUrl = urlInput ? urlInput.value.trim() : '';
+    if (!serverUrl) {
+        if (tip) tip.textContent = '❌ 请先输入服务器地址';
+        return;
+    }
+    if (tip) tip.textContent = '正在从服务器同步配置...';
+    if (btn) { btn.disabled = true; btn.textContent = '同步中...'; }
+    try {
+        const res = await apiPost('/api/config/sync', { server_url: serverUrl });
+        if (res && res.success) {
+            const d = res.data || {};
+            if (tip) tip.textContent = `✅ ${res.msg || '同步完成'}\n服务器版本: ${d.server_version || '未知'}`;
+            showToast('配置同步成功');
+        } else {
+            if (tip) tip.textContent = '❌ 同步失败：' + (res?.error || '未知错误');
+            showToast('配置同步失败');
+        }
+    } catch (err) {
+        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '⬇️ 同步配置'; }
+    }
+}
 Modules.register('ui', [], function initUIModule() {
     initTheme();
+
+    // 加载服务器地址
+    fetch('/api/config/server-url').then(r => r.json()).then(res => {
+        if (res.success && res.data && res.data.server_url) {
+            const input = $('configServerUrl');
+            if (input && !input.value) input.value = res.data.server_url;
+        }
+    }).catch(() => {});
 
     // 日志按钮绑定
     $('clearLogBtn').onclick = () => clearLogForView('device');
@@ -2267,8 +3142,7 @@ Modules.register('ui', [], function initUIModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/device.js =====
 // flash_tool/static/js/device.js
 // ============ 环境检查 ============
 async function checkEnv() {
@@ -2690,8 +3564,7 @@ function showFlashReport(success, detail = '') {
     writeLog(report, success ? 'ok' : 'err');
 }
 
-</script>
-<script>
+// ===== js/views/device_info.js =====
 // flash_tool/static/js/device_info.js
 // ============ 补充函数 ============
 function getFastbootModeLabel() {
@@ -2781,6 +3654,22 @@ function writeDeviceInfoHumanLog(info = {}) {
     formatDeviceInfoHuman(info).forEach(line => writeLog(line, 'info'));
 }
 
+/**
+ * 检查当前是否已选择了 vbmeta 镜像（根据来源类型判断）。
+ */
+function vbmetaHasImage() {
+    const sourceEl = document.getElementById('vbmetaSource');
+    if (!sourceEl) return false;
+    const source = sourceEl.value;
+    if (source === 'file') {
+        return !!(document.getElementById('vbmetaFileInput')?.dataset.uploadedPath);
+    } else if (source === 'custom') {
+        return !!(document.getElementById('vbmetaCustomPath')?.value.trim());
+    } else {
+        return !!(document.getElementById('vbmetaSelect')?.value);
+    }
+}
+
 function updateBtnState() {
     const backendFastbootUsable = backendReady && canFastboot;
     const backendAdbUsable = backendReady && canAdb;
@@ -2798,8 +3687,7 @@ function updateBtnState() {
     document.getElementById('readDeviceInfoBtn').disabled = !fastbootUsable;
     document.getElementById('querySlotBtn').disabled = !fastbootUsable;
     const _rcfb = document.getElementById('runCustomFastbootBtn'); if(_rcfb) _rcfb.disabled = !backendReady;
-    const vbmetaInput = document.getElementById('vbmetaSelect');
-    document.getElementById('disableVbmetaBtn').disabled = !vbmetaUsable || !(vbmetaInput && vbmetaInput.value.trim());
+    document.getElementById('disableVbmetaBtn').disabled = !vbmetaUsable || !vbmetaHasImage();
     document.getElementById('setSlotBtn').disabled = !fastbootUsable;
     document.getElementById('wipeBtn').disabled = !fastbootUsable;
     document.getElementById('wipeMetadataBtn').disabled = !fastbootUsable;
@@ -2821,15 +3709,15 @@ function updateButtonHints(state = {}) {
     const anyUsable = state.anyUsable ?? (fastbootUsable || canAdb || webusbAdbReady);
     const backendMode = state.backendMode ?? (appRunMode === 'backend');
     const vbmetaUsable = state.vbmetaUsable ?? (appRunMode === 'webusb' ? webusbFastbootReady : backendFastbootUsable);
-    const vbmetaSelected = !!(document.getElementById('vbmetaSelect')?.value || '').trim();
+    const vbmetaSelected = vbmetaHasImage();
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     setText('rebootHint', anyUsable ? '可用：已检测到 ADB 或 Fastboot 设备。' : '按钮不可用：请先检测 ADB/Fastboot 设备。');
     const modeName = appRunMode === 'webusb' ? 'WebUSB Fastboot' : '后端 Fastboot';
-    let vb = `可用：已输入 vbmeta 镜像地址，将通过 ${modeName} 执行关闭校验。`;
+    let vb = `可用：已选择 vbmeta 镜像，将通过 ${modeName} 执行关闭校验。`;
     if (!vbmetaUsable) vb = appRunMode === 'webusb'
         ? '按钮不可用：请先在 WebUSB 模式检测并连接 Fastboot/Bootloader 设备。'
         : '按钮不可用：请先检测到 Fastboot/Bootloader 设备。';
-    else if (!vbmetaSelected) vb = '按钮不可用：请先输入 vbmeta 镜像绝对地址。';
+    else if (!vbmetaSelected) vb = '按钮不可用：请先选择 vbmeta 镜像。';
     setText('vbmetaHint', vb);
     setText('slotHint', fastbootUsable ? '可用：已检测到 Fastboot 设备。切槽前请确认目标槽位可启动。' : '按钮不可用：需要 Fastboot 设备在线。');
     setText('wipeHint', fastbootUsable ? '可用但高危：执行后数据无法恢复。' : '按钮不可用：需要 Fastboot 设备在线。');
@@ -2842,8 +3730,7 @@ Modules.register('device-info', ['ui'], function initDeviceInfoModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/rom.js =====
 // flash_tool/static/js/rom.js
 // ============ 镜像管理 ============
 async function loadProjectImages() {
@@ -2852,6 +3739,11 @@ async function loadProjectImages() {
         if (d.success) {
             const _cis = document.getElementById('customImgSelect');
             if (_cis) fillSelect(_cis, d.files, '选择镜像文件');
+            const _vs = document.getElementById('vbmetaSource');
+            const _vsel = document.getElementById('vbmetaSelect');
+            if (_vs && _vsel && _vs.value === 'local') {
+                fillSelect(_vsel, d.files, '选择vbmeta镜像');
+            }
             renderProjectImageList(d.files);
             writeLog(`手机目录镜像：${d.files.length} 个`, 'info');
         }
@@ -2957,6 +3849,7 @@ async function refreshExtractedRoms() {
         });
         renderExtractedRomList(dirNames, dirTypes, dirClassIds);
         fillSelect(document.getElementById('romProjectSelect'), dirNames, '选择已解压线刷项目');
+        fillSelect(document.getElementById('vbmetaRomSelect'), dirNames, '选择已解压刷机包');
     } catch(e) { writeLog('加载列表失败：' + e.message, 'err'); }
 }
 
@@ -3187,8 +4080,7 @@ Modules.register('rom', ['api','utils','device-info'], function initRomModule() 
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/bat.js =====
 // flash_tool/static/js/bat.js
 // ============ BAT 脚本 ============
 async function refreshBatList() {
@@ -3241,8 +4133,6 @@ function stepsToShScript(steps) {
             lines.push(`$FASTBOOT resize-partition ${part} ${step.size || ''}`.trim());
         } else if (type === 'getvar') {
             lines.push(`$FASTBOOT getvar ${part}`);
-        } else if (type === 'wipe') {
-            lines.push(`$FASTBOOT -w`);
         } else if (type === 'devices') {
             lines.push(`$FASTBOOT devices`);
         } else if (step.raw) {
@@ -3354,7 +4244,6 @@ function renderSteps() {
             case 'boot': lab = '启动'; cls = 'type-boot'; cont = escHtml(item.fileName) || ''; break;
             case 'format': lab = '格式化'; cls = 'type-format'; cont = escHtml(item.part) || ''; break;
             case 'getvar': lab = '查询'; cls = 'type-getvar'; cont = escHtml(item.part || item.raw || '') || escHtml(item.type || ''); break;
-            case 'wipe': lab = '清空'; cls = 'type-erase'; cont = `清空 userdata（fastboot -w）`; break;
             case 'adb': lab = 'ADB'; cls = 'type-adb'; cont = escHtml(item.raw) || ''; break;
             case 'delete-logical-partition': lab = '删分区'; cls = 'type-erase'; cont = escHtml(item.part) || ''; badge = '<span class="step-badge badge-cow">COW</span>'; break;
             default:
@@ -3492,8 +4381,6 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
 
     document.getElementById('batSelect').onchange = () => {
         document.getElementById('importBatBtn').disabled = !document.getElementById('batSelect').value;
-        // v3.9.0: 参数输入框始终可见（从占用行内改为独占一行）
-        // 不再根据文件后缀隐藏/显示
     };
 
     document.getElementById('importBatBtn').onclick = async () => {
@@ -3505,8 +4392,7 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
         writeLog(`解析脚本：${bp}`);
         
         try {
-            const extra_args = document.getElementById('batExtraArgs').value || '';
-            const d = await apiPost('/api/rom/import_bat', {rom_name: rn, bat_path: bp, extra_args: extra_args});
+            const d = await apiPost('/api/rom/import_bat', {rom_name: rn, bat_path: bp});
             if (d.success) {
                 stepList = d.steps || [];
                 window._shContent = '';
@@ -3638,8 +4524,8 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
     console.log('[bat] BAT 模块已初始化');
     return true;
 });
-</script>
-<script>
+
+// ===== js/components/interactive_selector.js =====
 // flash_tool/static/js/interactive_selector.js
 // ============ 交互式脚本【逐层+进度选择器】 ============
 //
@@ -4013,8 +4899,7 @@ Modules.register('interactive-selector', [], function initInteractiveSelectorMod
     console.log('[interactive-selector] 交互式选择器模块已初始化');
     return true;
 });
-</script>
-<script>
+// ===== js/components/bat_risk.js =====
 // flash_tool/static/js/bat_risk.js
 
 // 禁用步骤编辑功能（复杂脚本模式）
@@ -4253,8 +5138,6 @@ function analyzeScriptRisks() {
         if (s.type === 'erase' && dataWipeParts.some(x => part.includes(x))) wipesData = true;
         // flash userdata 也算清数据
         if (s.type === 'flash' && dataWipeParts.some(x => part.includes(x))) wipesData = true;
-        // wipe 类型直接算清数据（fastboot -w）
-        if (s.type === 'wipe') wipesData = true;
         // -w 参数（fastboot -w update 或 flash -w）表示清数据
         const wipeParts = raw.split(' -w');
         if (raw.includes(' -w ') || (raw.includes(' -w') && wipeParts.length > 1 && wipeParts[1].trim().startsWith('update'))) hasWipeFlag = true;
@@ -4390,8 +5273,8 @@ Modules.register('bat-risk', [], function initBatRiskModule() {
     console.log('[bat-risk] 脚本风险模块已初始化');
     return true;
 });
-</script>
-<script>
+
+// ===== js/components/custom_flash.js =====
 // flash_tool/static/js/custom_flash.js
 // ============ 自定义单刷 ============
 let customImgSourceEl, customRomSelectEl, customImgSelectEl;
@@ -4596,13 +5479,7 @@ async function doFlashSingle(it, allowDangerous) {
 }
 
 async function fetchImageBytes(source, image, romName = '') {
-    let url;
-    if (source === 'path') {
-        // 绝对路径模式：使用 path_blob 接口，后端校验路径安全性
-        url = `/api/image/path_blob?path=${encodeURIComponent(image)}`;
-    } else {
-        url = `/api/image/blob?source=${encodeURIComponent(source)}&image=${encodeURIComponent(image)}&rom_name=${encodeURIComponent(romName || '')}`;
-    }
+    const url = `/api/image/blob?source=${encodeURIComponent(source)}&image=${encodeURIComponent(image)}&rom_name=${encodeURIComponent(romName || '')}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('读取镜像失败：' + await res.text());
     return new Uint8Array(await res.arrayBuffer());
@@ -4617,6 +5494,11 @@ async function resolveWebUsbImageBytes(imageName, options = {}) {
     // local / rom 模式：通过后端 API 读取镜像
     if (source === 'local' || source === 'rom') {
         return await fetchImageBytes(source, imageName, romName);
+    }
+
+    // custom / file 模式：imageName 是绝对路径，用 custom 源读取
+    if (source === 'custom' || source === 'file') {
+        return await fetchImageBytes('custom', imageName, '');
     }
     
     // 兼容旧逻辑（线刷脚本批量刷写）
@@ -4756,8 +5638,7 @@ Modules.register('custom-flash', ['api','utils','device-info'], function initCus
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/flash.js =====
 // flash_tool/static/js/flash.js
 // ============ 线刷 ============
 async function startBatchFlash() {
@@ -5045,8 +5926,7 @@ Modules.register('flash', ['api','utils','bat','bat-risk'], function initFlashMo
     return true;
 });
 
-</script>
-<script>
+// ===== js/components/toolbox_ops.js =====
 // flash_tool/static/js/toolbox_ops.js
 
 // ============ 重启 ============
@@ -5301,8 +6181,7 @@ Modules.register('toolbox-ops', ['api','utils','device-info'], function initTool
     return true;
 });
 
-</script>
-<script>
+// ===== js/components/webusb.js =====
 // flash_tool/static/js/webusb.js
 function validateWebUsbScriptImages() {
     if (stepList.length === 0) return {ok: true, missing: []};
@@ -5586,8 +6465,7 @@ Modules.register('webusb', [], function initWebusbModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/workbench.js =====
 // flash_tool/static/js/workbench.js
 // ============ 工作台 v3.2.0 ============
 // 注：wbSteps / wbExecuting / wbDetectedPartitions / wbCurrentType 已在 state.js 中声明
@@ -5634,9 +6512,43 @@ function wbPartSourceChange() {
 // 镜像来源切换
 function wbImgSourceChange() {
     const v = document.getElementById('wbImgSource').value;
+    document.getElementById('wbImgFileRow').style.display = v === 'file' ? '' : 'none';
     document.getElementById('wbImgRomRow').style.display = v === 'rom' ? '' : 'none';
     document.getElementById('wbImgCustomRow').style.display = v === 'custom' ? '' : 'none';
     if (v === 'rom') wbLoadRomPackages();
+}
+
+// 选择文件上传
+function wbPickImageFile() {
+    const input = document.getElementById('wbImgFileInput');
+    if (!input) return;
+    input.onchange = async function() {
+        if (!this.files || !this.files[0]) return;
+        const file = this.files[0];
+        const nameEl = document.getElementById('wbImgFileName');
+        if (nameEl) nameEl.textContent = '上传中...';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/images/upload', { method: 'POST', body: fd });
+            const d = await res.json();
+            if (d.success && d.data) {
+                // 存储上传后的路径
+                document.getElementById('wbImgFileInput').dataset.uploadedPath = d.data.path;
+                if (nameEl) nameEl.textContent = file.name;
+                writeLog(`工作台：文件 ${file.name} 已上传`, 'ok');
+            } else {
+                if (nameEl) nameEl.textContent = '上传失败';
+                writeLog('工作台：文件上传失败：' + (d.error || '未知错误'), 'err');
+            }
+        } catch(e) {
+            if (nameEl) nameEl.textContent = '上传失败';
+            writeLog('工作台：文件上传异常：' + e.message, 'err');
+        }
+        // 清空 input 的 value 以便重复选择同一文件
+        this.value = '';
+    };
+    input.click();
 }
 
 // 加载线刷包列表
@@ -5695,6 +6607,7 @@ function wbGetCurrentPartName() {
 // 获取当前镜像路径
 function wbGetCurrentImagePath() {
     const src = document.getElementById('wbImgSource').value;
+    if (src === 'file') return document.getElementById('wbImgFileInput').dataset.uploadedPath || '';
     if (src === 'rom') return document.getElementById('wbRomImgSelect').value;
     if (src === 'custom') return document.getElementById('wbImgCustomPath').value.trim();
     return '';
@@ -6073,6 +6986,9 @@ function handleWorkbenchAction(e) {
     if (action === 'wb-toggle-qa') {
         e.preventDefault();
         wbToggleQA(btn.dataset.type);
+    } else if (action === 'wb-pick-image-file') {
+        e.preventDefault();
+        wbPickImageFile();
     } else if (action === 'wb-quick-action') {
         e.preventDefault();
         wbQuickAction(btn.dataset.cmdType, btn.dataset.cmd, btn.dataset.label, btn.dataset.level);
@@ -6158,16 +7074,22 @@ Modules.register('workbench', ['api','utils'], function initWorkbenchModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/views/changelog.js =====
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.9.0 (2026-07-09)
-- 亮剑架构引擎落地失败，重启天树引擎
-- 工具箱VB校验增加文件选择按钮+绝对路径输入双模式
-- 线刷参数输入框移至解析脚本下一行，占满宽度
-- 版本号更新至 3.9.0
+const CHANGELOG_TEXT = `v3.8.7 (2026-07-07)
+- 新增：工作台镜像来源新增「选择文件」选项（默认），可直接从手机选择任意格式文件上传刷写
+- 新增：工具页关闭VBmeta校验新增「直接选择镜像文件」方式（默认），支持任意格式文件
+- 新增：工具页关闭VBmeta校验新增「自定义镜像地址」输入框，可直接输入绝对路径
+- 新增：文件上传API（/api/images/upload），对文件格式无限制
+- 新增：get_image_path 支持 custom 源（直接使用绝对路径）
+- 新增：服务器端配置管理后台（/admin），网页编辑配置文件
+- 新增：本地端从服务器同步配置功能（版本页「同步配置」按钮）
+- 修复：VipLoader registry.yaml 不自动刷新的问题
+- 优化：ScriptClassifier 改为全局单例 + mtime 缓存，避免每次解析都读文件
+- 优化：前端镜像路径与后端执行路径一致性（get_image_path 处理绝对路径）
+- 优化：预览命令参数顺序与实际执行一致（prefixParams 在 flash 之前）
 
 v3.8.5 (2026-07-06)
 - 重构：BAT 沙箱作为所有 BAT 子管线私有引擎（每个管线独立的 bat_sandbox 副本）
@@ -6611,8 +7533,8 @@ Modules.register('changelog', ['state'], function initChangelogModule(state) {
     console.log('[changelog] 更新日志模块已初始化');
     return true;
 });
-</script>
-<script>
+
+// ===== js/views/tools.js =====
 // flash_tool/static/js/tools.js
 // 版本/工具模块：依赖 changelog.js 提供的 window.renderVersionChangelog
 
@@ -6698,157 +7620,161 @@ async function doUpdate() {
     });
 }
 
-// ============ VBmeta（工具页：镜像来源选择与关闭校验） ============
-
+// ============ VBmeta（工具页：镜像加载与关闭校验） ============
 /**
- * 获取当前选择的 vbmeta 镜像路径（从输入框或下拉框联动获取）
+ * vbmeta 镜像来源切换回调。
+ * 来源为 file 时显示文件选择行；custom 时显示自定义路径输入框；
+ * rom 时显示刷机包选择行并加载包内镜像；local 时从手机目录加载镜像列表。
  */
-function getVbmetaImagePath() {
-    const source = document.getElementById('vbmetaSource');
-    if (!source) return '';
-    if (source.value === 'custom') {
-        const input = document.getElementById('vbmetaSelect');
-        return input ? input.value.trim() : '';
-    }
-    const imgSelect = document.getElementById('vbmetaRomImgSelect');
-    const romSelect = document.getElementById('vbmetaRomSelect');
-    if (!imgSelect || !romSelect) return '';
-    const img = imgSelect.value;
-    const rom = romSelect.value;
-    if (!img || !rom) return '';
-    return `/sdcard/123456/${rom}/images/${img}`;
-}
+async function onVbmetaSourceChange() {
+    const source = document.getElementById('vbmetaSource').value;
+    // 显示/隐藏各来源行
+    document.getElementById('vbmetaFileRow').style.display = source === 'file' ? 'flex' : 'none';
+    document.getElementById('vbmetaCustomRow').style.display = source === 'custom' ? 'flex' : 'none';
+    document.getElementById('vbmetaRomRow').style.display = source === 'rom' ? 'flex' : 'none';
 
-/**
- * 刷新按钮状态：根据当前选择的镜像来源和路径决定是否启用。
- */
-function updateVbmetaBtnState() {
-    const btn = document.getElementById('disableVbmetaBtn');
-    if (!btn) return;
-    btn.disabled = !getVbmetaImagePath();
-}
-
-/**
- * 切换 VBmeta 镜像来源：自定义路径 ↔ 已解压刷机包
- */
-function onVbmetaSourceChange() {
-    const source = document.getElementById('vbmetaSource');
-    if (!source) return;
-    const isRom = source.value === 'rom';
-    const romRow = document.getElementById('vbmetaRomRow');
-    const customRow = document.getElementById('vbmetaCustomRow');
-    if (romRow) romRow.style.display = isRom ? '' : 'none';
-    if (customRow) customRow.style.display = isRom ? 'none' : '';
-    if (isRom) {
-        refreshVbmetaRomList();
+    // vbmetaSelect 仅在 local/rom 模式下使用
+    const vbmetaSelectRow = document.getElementById('vbmetaSelect').parentElement;
+    if (source === 'local' || source === 'rom') {
+        vbmetaSelectRow.style.display = '';
     } else {
-        updateVbmetaBtnState();
+        vbmetaSelectRow.style.display = 'none';
     }
+
+    document.getElementById('vbmetaSelect').value = '';
+    updateBtnState();
+
+    if (source === 'rom') {
+        await loadVbmetaRomImages();
+    } else if (source === 'local') {
+        // 从手机目录加载镜像并填充 vbmetaSelect
+        try {
+            const d = await apiGet('/api/images');
+            if (d.success) {
+                fillSelect(document.getElementById('vbmetaSelect'), d.files, '选择vbmeta镜像');
+            }
+        } catch(e) { writeLog('加载手机目录镜像失败：' + e.message, 'err'); }
+    }
+    updateBtnState();
 }
 
 /**
- * 刷新已解压刷机包列表到 #vbmetaRomSelect
+ * 选择文件上传（vbmeta 用）。
+ * 对文件格式无限制。
  */
-async function refreshVbmetaRomList() {
-    const romSelect = document.getElementById('vbmetaRomSelect');
-    if (!romSelect) return;
-    const prevVal = romSelect.value;
-    romSelect.innerHTML = '<option value="">加载中...</option>';
-    romSelect.disabled = true;
-    try {
-        const data = await apiGet('/api/rom/list');
-        const dirs = (data && data.dirs) || [];
-        romSelect.innerHTML = '<option value="">选择已解压线刷包</option>';
-        dirs.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.name;
-            opt.textContent = d.name + (d.type ? ` (${d.type})` : '');
-            if (d.name === prevVal) opt.selected = true;
-            romSelect.appendChild(opt);
-        });
-        romSelect.disabled = false;
-        onVbmetaRomSelectChange();
-    } catch(e) {
-        romSelect.innerHTML = '<option value="">加载失败</option>';
-        romSelect.disabled = false;
-        console.warn('refreshVbmetaRomList 失败:', e);
-    }
+function vbmetaPickFile() {
+    const input = document.getElementById('vbmetaFileInput');
+    if (!input) return;
+    input.onchange = async function() {
+        if (!this.files || !this.files[0]) return;
+        const file = this.files[0];
+        const nameEl = document.getElementById('vbmetaFileName');
+        if (nameEl) nameEl.textContent = '上传中...';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/images/upload', { method: 'POST', body: fd });
+            const d = await res.json();
+            if (d.success && d.data) {
+                this.dataset.uploadedPath = d.data.path;
+                if (nameEl) nameEl.textContent = file.name;
+                writeLog(`vbmeta：文件 ${file.name} 已上传`, 'ok');
+                updateBtnState();
+            } else {
+                if (nameEl) nameEl.textContent = '上传失败';
+                writeLog('vbmeta：文件上传失败：' + (d.error || '未知错误'), 'err');
+            }
+        } catch(e) {
+            if (nameEl) nameEl.textContent = '上传失败';
+            writeLog('vbmeta：文件上传异常：' + e.message, 'err');
+        }
+        this.value = '';
+    };
+    input.click();
 }
 
 /**
- * 已解压刷机包选择变化 → 加载该项目的镜像列表到 #vbmetaRomImgSelect
- */
-async function onVbmetaRomSelectChange() {
-    const romSelect = document.getElementById('vbmetaRomSelect');
-    const imgSelect = document.getElementById('vbmetaRomImgSelect');
-    if (!romSelect || !imgSelect) return;
-    const rom = romSelect.value;
-    if (!rom) {
-        imgSelect.innerHTML = '<option value="">选择镜像</option>';
-        imgSelect.disabled = true;
-        updateVbmetaBtnState();
-        return;
-    }
-    imgSelect.innerHTML = '<option value="">加载镜像列表...</option>';
-    imgSelect.disabled = true;
-    try {
-        const data = await apiGet('/api/rom/images?rom_name=' + encodeURIComponent(rom));
-        const files = (data && data.files) || [];
-        imgSelect.innerHTML = '<option value="">选择镜像</option>';
-        files.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            imgSelect.appendChild(opt);
-        });
-        imgSelect.disabled = false;
-    } catch(e) {
-        imgSelect.innerHTML = '<option value="">加载失败</option>';
-        imgSelect.disabled = false;
-        console.warn('onVbmetaRomSelectChange 失败:', e);
-    }
-    updateVbmetaBtnState();
-}
-
-/**
- * 加载 VBmeta 镜像来源列表（初始化时调用），自动选中第一个项目并刷新镜像。
+ * 加载可用刷机包列表并填充到 vbmetaRomSelect 下拉框。
  */
 async function loadVbmetaRomList() {
     try {
-        const data = await apiGet('/api/rom/list');
-        const dirs = (data && data.dirs) || [];
-        const romSelect = document.getElementById('vbmetaRomSelect');
-        if (!romSelect) return;
-        romSelect.innerHTML = '<option value="">选择已解压线刷包</option>';
-        dirs.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.name;
-            opt.textContent = d.name + (d.type ? ` (${d.type})` : '');
-            romSelect.appendChild(opt);
-        });
-    } catch(e) {
-        console.warn('loadVbmetaRomList 获取项目列表失败:', e);
+        const d = await apiGet('/api/rom/list');
+        const dirNames = (d.dirs || []).map(item => typeof item === 'object' ? item.name : item);
+        fillSelect(document.getElementById('vbmetaRomSelect'), dirNames, '选择刷机包');
+    } catch(e) {}
+}
+
+/**
+ * vbmeta 刷机包选择变化回调：重置镜像选择框并加载该包内的镜像列表。
+ */
+async function onVbmetaRomSelectChange() {
+    document.getElementById('vbmetaSelect').innerHTML = '<option value="">选择vbmeta镜像</option>';
+    updateBtnState();
+    await loadVbmetaRomImages();
+    updateBtnState();
+}
+
+/**
+ * vbmeta 镜像选择变化回调：仅刷新相关按钮状态。
+ */
+async function onVbmetaSelectChange() {
+    updateBtnState();
+}
+
+/**
+ * 根据当前选中的刷机包加载其内部的 vbmeta 镜像列表。
+ */
+async function loadVbmetaRomImages() {
+    const rn = document.getElementById('vbmetaRomSelect').value;
+    if (!rn) {
+        document.getElementById('vbmetaSelect').innerHTML = '<option value="">选择vbmeta镜像</option>';
+        updateBtnState();
+        return;
     }
+    try {
+        const d = await apiGet(`/api/rom/images?rom_name=${encodeURIComponent(rn)}`);
+        if (d.success) {
+            fillSelect(document.getElementById('vbmetaSelect'), d.files, '选择vbmeta镜像');
+            writeLog(`加载包内镜像：${d.files.length} 个`, 'info');
+            updateBtnState();
+        }
+    } catch(e) { writeLog('加载失败：' + e.message, 'err'); }
+    updateBtnState();
 }
 
 // ============ 关闭VBmeta校验 ============
 /**
- * 关闭 VBmeta 校验：刷入输入的 vbmeta 镜像并附加 --disable-verity --disable-verification。
+ * 关闭 VBmeta 校验：刷入选中的 vbmeta 镜像并附加 --disable-verity --disable-verification。
  * 支持后端模式和 WebUSB 模式，执行前会弹出二次确认。
- * 镜像使用绝对路径（source=path），后端会校验路径安全性。
  */
 async function disableVbmeta() {
-    const img = getVbmetaImagePath();
-    if (!img) return;
+    const source = document.getElementById('vbmetaSource').value;
+    let img = '';
+    let romName = '';
+
+    if (source === 'file') {
+        img = document.getElementById('vbmetaFileInput').dataset.uploadedPath || '';
+        if (!img) { writeLog('请先选择文件', 'err'); return; }
+    } else if (source === 'custom') {
+        img = document.getElementById('vbmetaCustomPath').value.trim();
+        if (!img) { writeLog('请输入镜像绝对路径', 'err'); return; }
+    } else {
+        img = document.getElementById('vbmetaSelect').value;
+        if (!img) { writeLog('请选择vbmeta镜像', 'err'); return; }
+        if (source === 'rom') romName = document.getElementById('vbmetaRomSelect').value;
+    }
 
     showConfirm('操作确认', '刷入 vbmeta 并关闭校验（--disable-verity --disable-verification），确认继续？', async () => {
         setModuleStatus('toolbox', '工具箱状态：准备刷入 vbmeta 并关闭校验。', 'warn');
         showModuleProgress('toolbox', '准备刷入 vbmeta');
+        // file 源的路径是上传后的绝对路径，后端用 custom 源处理
+        const backendSource = source === 'file' ? 'custom' : source;
         const reqData = {
             extra: '--disable-verity --disable-verification',
-            source: 'path',
+            source: backendSource,
             image: img
         };
+        if (source === 'rom') reqData.rom_name = romName;
         if (appRunMode === 'webusb') {
             if (!webusbFastbootReady || !webusbFastboot) {
                 setModuleStatus('toolbox', 'WebUSB Fastboot 未连接，无法刷写 vbmeta。', 'err');
@@ -6856,7 +7782,7 @@ async function disableVbmeta() {
             }
             try {
                 writeLog('WebUSB模式：刷入 vbmeta 并关闭 verity/verification。', 'tip');
-                const bytes = await fetchImageBytes('path', img);
+                const bytes = await fetchImageBytes(source, img, romName);
                 await webusbFastboot.flash('vbmeta', bytes, p => updateModuleProgress('toolbox', p, 'WebUSB刷写 vbmeta'));
                 updateModuleProgress('toolbox', 100, 'vbmeta 已刷入');
                 setModuleStatus('toolbox', 'WebUSB已刷入 vbmeta，校验关闭完成。', 'ok');
@@ -6913,47 +7839,41 @@ function handleVersionAction(e) {
     } else if (action === 'do-update') {
         e.preventDefault();
         doUpdate();
+    } else if (action === 'vbmeta-pick-file') {
+        e.preventDefault();
+        vbmetaPickFile();
     }
 }
 
 // ============ 模块初始化 ============
 Modules.register('tools', ['api','utils','device-info'], function initToolsModule() {
-    // VBmeta 镜像来源切换
-    const vbmetaSource = document.getElementById('vbmetaSource');
-    if (vbmetaSource) vbmetaSource.onchange = onVbmetaSourceChange;
+    document.getElementById('vbmetaSource').onchange = onVbmetaSourceChange;
+    document.getElementById('vbmetaRomSelect').onchange = onVbmetaRomSelectChange;
+    document.getElementById('vbmetaSelect').onchange = onVbmetaSelectChange;
+    // 自定义路径输入时刷新按钮状态
+    const vbmetaCustomPathEl = document.getElementById('vbmetaCustomPath');
+    if (vbmetaCustomPathEl) vbmetaCustomPathEl.oninput = updateBtnState;
+    document.getElementById('disableVbmetaBtn').onclick = disableVbmeta;
 
-    // VBmeta 自定义路径输入
-    const vbmetaInput = document.getElementById('vbmetaSelect');
-    if (vbmetaInput) {
-        vbmetaInput.oninput = updateVbmetaBtnState;
-        vbmetaInput.onchange = updateVbmetaBtnState;
-    }
+    // 绑定事件委托（含 vbmeta 文件选择按钮）— 绑定到工具页和版本页
+    const toolsView = document.querySelector('[data-view="tools"]') || document.body;
+    toolsView.addEventListener('click', handleVersionAction);
+    const versionView = document.querySelector('[data-view="version"]');
+    if (versionView) versionView.addEventListener('click', handleVersionAction);
 
-    // VBmeta 刷机包选择
-    const vbmetaRomSelect = document.getElementById('vbmetaRomSelect');
-    if (vbmetaRomSelect) vbmetaRomSelect.onchange = onVbmetaRomSelectChange;
-
-    // VBmeta 镜像选择
-    const vbmetaRomImgSelect = document.getElementById('vbmetaRomImgSelect');
-    if (vbmetaRomImgSelect) vbmetaRomImgSelect.onchange = updateVbmetaBtnState;
-
-    // VBmeta 执行关闭校验
-    const disableVbmetaBtn = document.getElementById('disableVbmetaBtn');
-    if (disableVbmetaBtn) disableVbmetaBtn.onclick = disableVbmeta;
+    // 初始化时根据默认来源隐藏/显示对应行
+    onVbmetaSourceChange();
 
     loadVersion();
-    loadVbmetaRomList();
 
     console.log('[tools] 版本/工具模块已初始化');
     return true;
 });
-</script>
 
-<script>
+// ===== js/components/upload.js =====
 // ============ 脚本上传功能（自包含重写版）============
 // v2 - 脱离 _upload_records.json，直接用 WebDAV 文件名列表
 var _selectedUploadFile = null;
-var _isUploading = false;
 // ---- 内部常量 ----
 var UP = {};
 // ---- 配置说明 ----
@@ -7337,13 +8257,11 @@ function onUploadFileSelect(event) {
 }
 // ---- 上传脚本 ----
 function submitUpload() {
-    if (!_selectedUploadFile || _isUploading) return;
-    _isUploading = true;
+    if (!_selectedUploadFile) return;
     var btn = document.getElementById('uploadSubmitBtn');
     var progressWrap = document.getElementById('uploadProgressWrap');
     var progressBar = document.getElementById('uploadProgressBar');
     var result = document.getElementById('uploadResult');
-    var fileInput = document.getElementById('uploadFileInput');
     btn.disabled = true;
     btn.textContent = '上传中...';
     progressWrap.style.display = '';
@@ -7367,10 +8285,6 @@ function submitUpload() {
                 result.textContent = '✅ 上传成功';
                 btn.disabled = false;
                 btn.textContent = '确认上传';
-                _isUploading = false;
-                _selectedUploadFile = null;
-                if (fileInput) fileInput.value = '';
-                document.getElementById('uploadFileInfo').textContent = '';
                 setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
                 refreshUploadList();
             },
@@ -7380,16 +8294,9 @@ function submitUpload() {
                 result.textContent = '❌ 上传失败';
                 btn.disabled = false;
                 btn.textContent = '确认上传';
-                _isUploading = false;
                 setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
             }
         );
-    };
-    reader.onerror = function() {
-        _isUploading = false;
-        btn.disabled = false;
-        btn.textContent = '确认上传';
-        showToast('读取文件失败');
     };
     reader.readAsText(file);
 }
@@ -7435,8 +8342,9 @@ function handleUploadAction(e) {
 
 // ============ 模块初始化 ============
 Modules.register('upload', [], function initUploadModule() {
-    // 脚本列表点击与查看器关闭按钮都通过 body 事件委托处理，
-    // 避免在 uploadHistoryList 上再注册一次导致弹窗打开两次。
+    var uploadHistoryList = document.getElementById('uploadHistoryList');
+    if (uploadHistoryList) uploadHistoryList.addEventListener('click', handleUploadAction);
+
     document.body.addEventListener('click', handleUploadAction);
 
     var uploadFileInput = document.getElementById('uploadFileInput');
@@ -7454,8 +8362,7 @@ Modules.register('upload', [], function initUploadModule() {
     return true;
 });
 
-</script>
-<script>
+// ===== js/core/init.js =====
 // flash_tool/static/js/init.js
 // ============ 应用初始化 ============
 // 改造后：通过 Modules.register 注册初始化模块，DOMReady 后统一调用。
@@ -7577,14 +8484,321 @@ window.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-</script>
-<script>
-'use strict';
-// 错误边界：init.js 现在通过 DOMContentLoaded + Modules.init() 统一初始化，
-// 这里保留兜底，避免旧代码或第三方脚本直接调用 init 导致重复执行。
-window.__legacyInit = function() {
-  console.warn('[保护] 检测到旧 init() 调用，已忽略（请使用 Modules.init）');
+
+
+// ============ WebUSB Fastboot 实现（v3.8.7 新增） ============
+// 基于 WebUSB API 实现 Fastboot 协议通信
+
+const FASTBOOT_USB_CLASS = 0xFF;
+const FASTBOOT_USB_SUBCLASS = 0x42;
+const FASTBOOT_USB_PROTOCOL = 0x03;
+const FASTBOOT_MAX_PACKET_SIZE = 64;
+const FASTBOOT_RESPONSE_TIMEOUT = 30000;
+
+// Fastboot 命令类型
+const FASTBOOT_CMD = {
+    CONTINUE: 0x464E4943, // 'CONT'
+    DATA: 0x41544144,     // 'DATA'
+    COMPLETE: 0x4554504F, // 'OKAY'
+    FAIL: 0x4C494146,     // 'FAIL'
+    INFO: 0x4F464E49,     // 'INFO'
+    TEXT: 0x54534554,     // 'TEXT'
 };
+
+class WebUsbFastboot {
+    constructor(device) {
+        this.device = device;
+        this.interfaceNumber = -1;
+        this.inEndpoint = null;
+        this.outEndpoint = null;
+        this.maxPacketSize = FASTBOOT_MAX_PACKET_SIZE;
+    }
+
+    async connect() {
+        if (!this.device.opened) {
+            await this.device.open();
+        }
+
+        // 查找 Fastboot 接口
+        const interfaces = this.device.configuration.interfaces;
+        let found = false;
+        for (const iface of interfaces) {
+            const isFastboot = (
+                iface.alternates.some(alt =>
+                    alt.interfaceClass === FASTBOOT_USB_CLASS &&
+                    alt.interfaceSubclass === FASTBOOT_USB_SUBCLASS
+                ) ||
+                iface.alternates.some(alt =>
+                    alt.interfaceClass === 0xFF &&
+                    alt.interfaceSubclass === 0x42 &&
+                    alt.interfaceProtocol === 0x03
+                )
+            );
+            if (isFastboot) {
+                this.interfaceNumber = iface.interfaceNumber;
+                await this.device.claimInterface(this.interfaceNumber);
+                // 查找 IN/OUT 端点
+                const alt = iface.alternates[0];
+                for (const ep of alt.endpoints) {
+                    if (ep.direction === 'in' && ep.type === 'bulk') {
+                        this.inEndpoint = ep;
+                    } else if (ep.direction === 'out' && ep.type === 'bulk') {
+                        this.outEndpoint = ep;
+                    }
+                }
+                if (this.inEndpoint && this.outEndpoint) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            // 宽松匹配：找任意 bulk IN/OUT 端点对
+            for (const iface of interfaces) {
+                try {
+                    await this.device.claimInterface(iface.interfaceNumber);
+                    const alt = iface.alternates[0];
+                    for (const ep of alt.endpoints) {
+                        if (ep.direction === 'in' && ep.type === 'bulk' && !this.inEndpoint) {
+                            this.inEndpoint = ep;
+                            this.interfaceNumber = iface.interfaceNumber;
+                        } else if (ep.direction === 'out' && ep.type === 'bulk' && !this.outEndpoint) {
+                            this.outEndpoint = ep;
+                        }
+                    }
+                    if (this.inEndpoint && this.outEndpoint) {
+                        found = true;
+                        break;
+                    }
+                    await this.device.releaseInterface(iface.interfaceNumber);
+                } catch(e) { /* continue */ }
+            }
+        }
+
+        if (!found) {
+            throw new Error('未找到 Fastboot 接口（需要 bulk IN/OUT 端点）');
+        }
+
+        // 尝试获取 max packet size
+        try {
+            const info = await this._sendCommand('getvar:max-download-size');
+            const m = info.match(/max-download-size:\s*(\w+)/);
+            if (m) {
+                this.maxDownloadSize = parseInt(m[1], 16);
+            }
+        } catch(e) {
+            this.maxDownloadSize = 512 * 1024 * 1024; // 默认 512MB
+        }
+
+        return true;
+    }
+
+    async _rawSend(data) {
+        await this.device.transferOut(this.outEndpoint.endpointNumber, data);
+    }
+
+    async _rawReceive(timeout = FASTBOOT_RESPONSE_TIMEOUT) {
+        const result = await this.device.transferIn(this.inEndpoint.endpointNumber, 4096);
+        if (result.status !== 'ok') {
+            throw new Error('USB 接收失败: ' + result.status);
+        }
+        return result.data;
+    }
+
+    _strToBytes(str) {
+        const enc = new TextEncoder();
+        return enc.encode(str);
+    }
+
+    _bytesToStr(buf) {
+        const dec = new TextDecoder();
+        return dec.decode(buf);
+    }
+
+    _readUInt32LE(buf, offset = 0) {
+        return (buf[offset] | (buf[offset+1] << 8) | (buf[offset+2] << 16) | (buf[offset+3] << 24)) >>> 0;
+    }
+
+    async _sendCommand(cmdStr) {
+        const data = this._strToBytes(cmdStr);
+        if (data.length > 64) throw new Error('命令过长: ' + cmdStr);
+        await this._rawSend(data);
+        return await this._readResponse();
+    }
+
+    async _readResponse(timeout = FASTBOOT_RESPONSE_TIMEOUT) {
+        const startTime = Date.now();
+        let info = '';
+        while (Date.now() - startTime < timeout) {
+            const result = await this.device.transferIn(this.inEndpoint.endpointNumber, 64);
+            if (result.status !== 'ok' || !result.data || result.data.byteLength < 4) {
+                continue;
+            }
+            const buf = new Uint8Array(result.data);
+            const cmdType = this._readUInt32LE(buf, 0);
+            const payload = this._bytesToStr(buf.slice(4));
+
+            if (cmdType === FASTBOOT_CMD.INFO) {
+                info += payload + '\n';
+            } else if (cmdType === FASTBOOT_CMD.COMPLETE) {
+                return info + payload;
+            } else if (cmdType === FASTBOOT_CMD.FAIL) {
+                throw new Error('Fastboot FAIL: ' + payload);
+            } else if (cmdType === FASTBOOT_CMD.DATA) {
+                return payload; // 返回 data size hex
+            } else if (cmdType === FASTBOOT_CMD.TEXT) {
+                return payload;
+            }
+        }
+        throw new Error('Fastboot 响应超时');
+    }
+
+    async getvar(name) {
+        return await this._sendCommand('getvar:' + name);
+    }
+
+    async flash(partition, imageBytes, onProgress) {
+        // 发送 flash 命令
+        await this._sendCommand('flash:' + partition);
+
+        // 发送 data 命令（带文件大小）
+        const sizeHex = (imageBytes.byteLength).toString(16).padStart(8, '0');
+        const dataCmd = this._strToBytes('data:' + sizeHex);
+        await this._rawSend(dataCmd);
+
+        // 读取 DATA 响应
+        const resp = await this._readResponse();
+        // 如果返回 OKAY 而非 DATA，说明设备拒绝了
+        // 正常情况下设备返回 DATA + 下载大小
+
+        // 分块发送数据
+        const chunkSize = this.maxPacketSize || 64;
+        // 尝试更大的块以提高速度
+        const sendChunkSize = Math.min(1024 * 1024, imageBytes.byteLength); // 1MB 块
+        let offset = 0;
+        while (offset < imageBytes.byteLength) {
+            const end = Math.min(offset + sendChunkSize, imageBytes.byteLength);
+            const chunk = imageBytes.slice(offset, end);
+            await this._rawSend(chunk);
+            offset = end;
+            if (onProgress) {
+                onProgress(Math.round(offset / imageBytes.byteLength * 100));
+            }
+        }
+
+        // 等待 COMPLETE 响应
+        await this._readResponse();
+    }
+
+    async erase(partition) {
+        return await this._sendCommand('erase:' + partition);
+    }
+
+    async reboot(target) {
+        const cmd = target && target !== 'system' ? 'reboot-' + target : 'reboot';
+        return await this._sendCommand(cmd);
+    }
+
+    async setActive(slot) {
+        return await this._sendCommand('set_active:' + slot);
+    }
+
+    async oem(sub) {
+        return await this._sendCommand('oem ' + sub);
+    }
+
+    async flashing(sub) {
+        return await this._sendCommand('flashing ' + sub);
+    }
+
+    async disconnect() {
+        if (this.interfaceNumber >= 0) {
+            try {
+                await this.device.releaseInterface(this.interfaceNumber);
+            } catch(e) {}
+        }
+    }
+}
+
+// ============ 缺失的全局函数实现 ============
+
+async function claimWebUsbInterface(device) {
+    // 尝试 ADB 接口（class 0xFF, subclass 0x42, protocol 0x01）
+    try {
+        if (!device.opened) await device.open();
+        const interfaces = device.configuration.interfaces;
+        for (const iface of interfaces) {
+            const isAdb = iface.alternates.some(alt =>
+                alt.interfaceClass === 0xFF &&
+                alt.interfaceSubclass === 0x42 &&
+                alt.interfaceProtocol === 0x01
+            );
+            if (isAdb) {
+                await device.claimInterface(iface.interfaceNumber);
+                return true;
+            }
+        }
+    } catch(e) {
+        console.warn('[WebUSB] ADB 接口探测失败:', e.message);
+    }
+    return false;
+}
+
+async function claimWebUsbFastboot(device) {
+    try {
+        webusbFastboot = new WebUsbFastboot(device);
+        await webusbFastboot.connect();
+        return true;
+    } catch(e) {
+        console.warn('[WebUSB] Fastboot 接口探测失败:', e.message);
+        webusbFastboot = null;
+        return false;
+    }
+}
+
+async function runWebUsbFastbootCommand(cmd) {
+    if (!webusbFastboot) throw new Error('WebUSB Fastboot 未连接');
+
+    const command = cmd.command;
+    if (command === 'flash') {
+        let bytes = cmd.payload;
+        if (typeof bytes === 'string' || bytes instanceof ArrayBuffer) {
+            bytes = new Uint8Array(bytes);
+        }
+        if (!(bytes instanceof Uint8Array)) {
+            throw new Error('镜像数据格式错误');
+        }
+        await webusbFastboot.flash(cmd.partition, bytes, cmd.onProgress);
+    } else if (command === 'erase') {
+        await webusbFastboot.erase(cmd.partition);
+    } else if (command === 'reboot') {
+        await webusbFastboot.reboot(cmd.target);
+    } else if (command === 'set_active') {
+        await webusbFastboot.setActive(cmd.slot);
+    } else if (command === 'oem') {
+        await webusbFastboot.oem(cmd.sub);
+    } else if (command === 'flashing') {
+        await webusbFastboot.flashing(cmd.sub);
+    } else if (command === 'getvar') {
+        return await webusbFastboot.getvar(cmd.variable);
+    } else {
+        throw new Error('不支持的 WebUSB 命令: ' + command);
+    }
+    return 'OK';
+}
+
+async function webusbEraseWithFallback(partition) {
+    try {
+        await runWebUsbFastbootCommand({command: 'erase', partition});
+    } catch(e) {
+        writeLog('WebUSB erase 失败，尝试忽略: ' + e.message, 'warn');
+    }
+}
+
+console.log('[WebUSB] Fastboot 协议实现已加载');
+
 </script>
+
 </body>
 </html>
