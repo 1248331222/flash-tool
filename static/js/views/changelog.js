@@ -1,7 +1,13 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.9.0 (2026-07-09)
+const CHANGELOG_TEXT = `v3.9.1 (2026-07-10)
+- 修复：非AB机型执行线刷时 set_active 步骤导致后端500崩溃
+- 修复：启动线刷任务路由未捕获异常导致返回非JSON错误
+- 优化：非AB设备自动跳过 set_active 步骤，不再中断刷机流程
+- 优化：sh_001管线解析高通QTI flash_all.sh（57步覆盖所有分区）
+
+v3.9.0 (2026-07-09)
 - 亮剑架构引擎落地失败，重启天树引擎
 - 工具箱VB校验增加文件选择按钮+绝对路径输入双模式
 - 线刷参数输入框移至解析脚本下一行，占满宽度

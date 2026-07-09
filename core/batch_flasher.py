@@ -355,7 +355,24 @@ def batch_flash_worker(task_id: str, progress_callback=None):
                 else:
                     result = run_fastboot_command(["erase", step.get("part", "")], timeout=FASTBOOT_FLASH_TIMEOUT)
             elif stype == "set_active":
-                result = run_fastboot_command(["set_active", step.get("part", "")], timeout=FASTBOOT_FLASH_TIMEOUT)
+                # 非AB设备执行 set_active 会报错，先检测设备是否AB分区
+                # 如果非AB则跳过该步骤
+                slot_target = step.get("part", "")
+                try:
+                    check_result = run_fastboot_command(["getvar", "current-slot"], timeout=10)
+                    check_output = (check_result.get("combined", "") or "").lower()
+                    # current-slot 返回值格式: "current-slot: a" 或 "a"
+                    # 非AB设备没有这个变量，返回空或 not found
+                    has_slot = bool(re.search(r'(?:current-slot)?\s*:\s*[ab]', check_output))
+                    if has_slot:
+                        result = run_fastboot_command(["set_active", slot_target], timeout=FASTBOOT_FLASH_TIMEOUT)
+                    else:
+                        _append_log(task, f"非AB分区设备，跳过 set_active {slot_target}")
+                        result = {"success": True, "category": "skipped"}
+                except Exception as e:
+                    # 查询失败也视为非AB，跳过
+                    _append_log(task, f"检测槽位失败({e})，视为非AB设备，跳过 set_active {slot_target}")
+                    result = {"success": True, "category": "skipped"}
             elif stype == "reboot":
                 task["next_index"] = i + 1
                 persist_tasks()

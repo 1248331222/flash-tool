@@ -107,6 +107,7 @@ h3 { font-size:15px; margin:0 0 10px 0; }
 
   _renderChangelog() {
     const logs = [
+      { ver: 'v3.9.1', date: '2026-07-10', items: ['修复非AB机型set_active崩溃', '启动线刷任务异常捕获', '非AB自动跳过set_active', 'sh_001解析高通flash_all.sh优化'] },
       { ver: 'v3.9.0', date: '2026-07-09', items: ['亮剑架构引擎落地失败，重启天树引擎', '工具箱VB校验增加文件选择按钮', '线刷参数输入框UI优化'] },
       { ver: 'v3.8.5', date: '2026-07-06', items: ['前端架构重构：Web Component 隔离', '上传脚本优化', 'UI 细节调整'] },
       { ver: 'v3.7.0', date: '2026-07-04', items: ['FTB 纯前端脚本视图修复', 'WebUSB 模式增强'] },

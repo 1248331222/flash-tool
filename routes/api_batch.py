@@ -101,41 +101,45 @@ def export_batch_log():
 
 @batch_task_bp.route('/start', methods=['POST'])
 def start_batch_task():
-    data = request.get_json(silent=True) or {}
-    steps = data.get("steps") or []
-    source = data.get("source") or "rom"
-    rom_name = data.get("rom_name") or ""
-    start_index = int(data.get("start_index") or 0)
-    allow_dangerous = bool(data.get("allow_dangerous", False))
+    try:
+        data = request.get_json(silent=True) or {}
+        steps = data.get("steps") or []
+        source = data.get("source") or "rom"
+        rom_name = data.get("rom_name") or ""
+        start_index = int(data.get("start_index") or 0)
+        allow_dangerous = bool(data.get("allow_dangerous", False))
 
-    # 25C：如果前端传了 hydra_summary，通过 Pipeline 检查阻断
-    hydra_summary = data.get("hydra_summary")
-    if hydra_summary:
-        quality = hydra_summary.get("quality") or {}
-        script_check = hydra_summary.get("script_resource_check") or {}
+        # 25C：如果前端传了 hydra_summary，通过 Pipeline 检查阻断
+        hydra_summary = data.get("hydra_summary")
+        if hydra_summary:
+            quality = hydra_summary.get("quality") or {}
+            script_check = hydra_summary.get("script_resource_check") or {}
 
-        blockers = []
-        if quality.get("score", 100) < 55:
-            blockers.append(f"解析质量评分过低（{quality['score']} 分），解析结果不可靠，不建议执行")
+            blockers = []
+            if quality.get("score", 100) < 55:
+                blockers.append(f"解析质量评分过低（{quality['score']} 分），解析结果不可靠，不建议执行")
 
-        missing = script_check.get("missing_files") or []
-        if missing:
-            msg = f"脚本引用的 {len(missing)} 个文件在 ROM 中未找到：{', '.join(missing[:3])}"
-            if len(missing) > 3:
-                msg += f" 等 {len(missing)} 个"
-            blockers.append(msg)
+            missing = script_check.get("missing_files") or []
+            if missing:
+                msg = f"脚本引用的 {len(missing)} 个文件在 ROM 中未找到：{', '.join(missing[:3])}"
+                if len(missing) > 3:
+                    msg += f" 等 {len(missing)} 个"
+                blockers.append(msg)
 
-        if blockers:
-            return jsonify({"success": False, "error": "；".join(blockers), "blockers": blockers})
+            if blockers:
+                return jsonify({"success": False, "error": "；".join(blockers), "blockers": blockers})
 
-    result = create_batch_flash_task(
-        steps=steps,
-        source=source,
-        rom_name=rom_name,
-        start_index=start_index,
-        allow_dangerous=allow_dangerous,
-    )
-    return jsonify(result)
+        result = create_batch_flash_task(
+            steps=steps,
+            source=source,
+            rom_name=rom_name,
+            start_index=start_index,
+            allow_dangerous=allow_dangerous,
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"启动线刷任务异常: {e}")
+        return jsonify({"success": False, "error": f"启动线刷任务异常: {str(e)}"})
 
 
 @batch_task_bp.route('/status/<task_id>')

@@ -230,5 +230,20 @@
     "updated_at": 1783557330.8416862,
     "src_path": "/storage/emulated/0/123456/线刷.zip",
     "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/线刷"
+  },
+  "d8bac3dc": {
+    "type": "extract",
+    "status": "success",
+    "progress": 100,
+    "logs": [
+      "开始解压：20260709095149_an4wo9_flash_all.zip",
+      "ZIP解压完成",
+      "解压完成"
+    ],
+    "error": "",
+    "created_at": 1783596163.1649718,
+    "updated_at": 1783596163.332473,
+    "src_path": "/storage/emulated/0/123456/20260709095149_an4wo9_flash_all.zip",
+    "target_dir": "/data/data/com.termux/files/home/storage/shared/123456/rom/20260709095149_an4wo9_flash_all"
   }
 }

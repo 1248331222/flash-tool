@@ -8,7 +8,7 @@ import shutil
 import logging
 
 # ============ 版本信息 ============
-TOOL_VERSION = "3.9.0"
+TOOL_VERSION = "3.9.1"
 UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/sd/123456"
 UPDATE_ZIP_URL = f"{UPDATE_REMOTE_BASE}/flash_tool.zip"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/master/config.py"
