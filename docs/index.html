@@ -23,10 +23,13 @@ window.addEventListener('unhandledrejection', function(e) {
   e.preventDefault();
 });
 </script>
-<style>
 
-/* ===== css/main.css ===== */
-/* ============ 基础变量与全局 ============ */
+
+
+
+
+
+<style>/* ============ 基础变量与全局 ============ */
 :root{
     --accent-blue:#0a84ff;
     --accent-green:#30d158;
@@ -584,7 +587,6 @@ h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-
 .error-card .diagnosis-box strong{color:var(--accent-orange)}
 
 .error-card .diagnosis-box p{color:var(--text-primary);margin-top:4px;line-height:1.5}
-/* ===== css/views/device.css ===== */
 /* ============ 视图 - 设备连接 ============ */
 .run-mode-panel { padding:12px; }
 .run-mode-head { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px; }
@@ -610,7 +612,6 @@ h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-
 #modeStatus { display:none; }
 body[data-run-mode="webusb"] .webusb-highlight { border-left-color:var(--accent-green); }
 
-/* ===== css/views/batch.css ===== */
 /* ============ 视图 - 线刷 ============ */
 .batch-page h3 { margin:8px 0 6px; }
 .batch-pack-card { border:none; border-radius:12px; background:var(--card-bg); padding:10px; margin:8px 0; box-shadow:var(--card-shadow); }
@@ -657,7 +658,6 @@ body[data-run-mode="webusb"] .webusb-highlight { border-left-color:var(--accent-
 .slot-badge { background:var(--bg-tertiary); color:var(--accent-green); padding:3px 8px; border-radius:6px; font-size:12px; font-weight:600; }
 body[data-run-mode="webusb"] .backend-mode-only { display:none!important; }
 body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
-/* ===== css/views/version.css ===== */
 /* ============ 视图 - 版本信息 ============ */
 .version-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
 .version-card { background:var(--card-bg); border-radius:12px; padding:12px; box-shadow:var(--card-shadow); margin-bottom:12px; }
@@ -675,7 +675,6 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 .ver-body { display:none; padding:0 8px 8px; font-size:12px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap; }
 .ver-body.open { display:block; }
 
-/* ===== css/views/tools.css ===== */
 /* ============ 视图 - 工具箱 ============ */
 .mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:10px 0; }
 .mode-card { background:var(--card-bg); border:none; border-radius:12px; padding:12px; box-shadow:var(--card-shadow); }
@@ -698,7 +697,6 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 .bl-status-badge.warn { color:var(--accent-orange); background:rgba(255,159,10,0.12); }
 .button-hint { font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
 .empty-state { border:none; border-radius:12px; padding:16px 12px; text-align:center; color:var(--text-muted); font-size:12px; line-height:1.45; background:var(--bg-tertiary); }
-/* ===== css/views/workbench.css ===== */
 /* ============ 视图 - 工作台 ============ */
 .wb-step { display:flex; align-items:center; gap:6px; padding:6px 8px; margin:4px 0; background:var(--bg-card,rgba(30,41,59,.8)); border-radius:6px; font-size:12px; border-left:3px solid var(--accent-blue,#409eff); }
 .wb-step[data-type="adb"] { border-left-color: #67c23a; }
@@ -743,8 +741,7 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 .wb-scheme-card { background:var(--bg-card,#1e293b); border-radius:10px; padding:16px; max-width:90vw; width:360px; max-height:70vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 .wb-scheme-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(100,116,139,.2); }
 .wb-scheme-item:last-child { border-bottom: none; }
-</style>
-</head>
+</style></head>
 <body>
 
 <!-- 主题切换按钮 -->
@@ -851,6 +848,9 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 <button class="btn secondary small" id="refreshBatBtn">刷新脚本</button>
 <select id="batSelect"><option value="">选择刷机脚本</option></select>
 <button class="btn small" id="importBatBtn" disabled>解析脚本</button>
+</div>
+<div class="batch-select-row" style="margin-top:2px;display:block">
+<input type="text" id="batExtraArgs" placeholder="带参数解析默认无，如需请填写" style="width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color);box-sizing:border-box" title="BAT脚本%*占位符的展开值">
 </div>
 <div style="margin-top:6px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
   解析失败？<a href="#" data-action="quick-upload-script" class="accent-link">📤 上传此脚本样本</a> 帮助改进天树引擎
@@ -978,25 +978,6 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 <div id="versionUpdateTip" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
 </div>
 <div class="sub-section">
-<h3 style="font-size:13px">⚡ 配置热更新</h3>
-<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">修改 runtime/ 目录下的配置文件后，点击下方按钮立即刷新。不点击也会在下次上传脚本时自动生效。</p>
-<div class="version-row">
-<button class="btn secondary small" id="hydraReloadBtn" data-action="hydra-reload">🔄 刷新配置</button>
-<button class="btn secondary small" id="hydraStatusBtn" data-action="hydra-status">📊 查看状态</button>
-</div>
-<div id="hydraReloadTip" style="font-size:12px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap"></div>
-</div>
-<div class="sub-section">
-<h3 style="font-size:13px">☁️ 服务器配置同步</h3>
-<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">从配置服务器拉取最新的分类规则、VIP解析器等配置。需要网络连接。</p>
-<div class="version-row" style="flex-wrap:wrap;gap:6px">
-<input type="text" id="configServerUrl" placeholder="http://81.68.84.205:12345" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg-card);color:var(--text)">
-<button class="btn secondary small" id="configCheckBtn" data-action="config-check">🔍 检查更新</button>
-<button class="btn small btn-success" id="configSyncBtn" data-action="config-sync">⬇️ 同步配置</button>
-</div>
-<div id="configSyncTip" style="font-size:12px;color:var(--text-muted);margin-top:4px;white-space:pre-wrap"></div>
-</div>
-<div class="sub-section">
 <h3 style="font-size:13px">📜 更新日志</h3>
 <div id="versionChangelog" class="version-changelog"></div>
 </div>
@@ -1117,18 +1098,10 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 <div class="custom-row">
 <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">镜像来源：</label>
 <select id="wbImgSource" style="width:100px">
-<option value="file" selected>选择文件</option>
 <option value="none">无镜像</option>
 <option value="rom">线刷包镜像</option>
-<option value="custom">自定义路径</option>
+<option value="custom">自定义绝对路径</option>
 </select>
-</div>
-<div id="wbImgFileRow">
-<div class="custom-row">
-<input type="file" id="wbImgFileInput" style="display:none">
-<button class="btn small" id="wbImgFileBtn" data-action="wb-pick-image-file">📁 选择文件</button>
-<span id="wbImgFileName" style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:60px">未选择文件</span>
-</div>
 </div>
 <div id="wbImgRomRow" style="display:none">
 <div class="custom-row">
@@ -1138,7 +1111,7 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 </div>
 <div id="wbImgCustomRow" style="display:none">
 <div class="custom-row">
-<input type="text" id="wbImgCustomPath" placeholder="输入镜像绝对路径，如 /sdcard/boot.img" style="flex:1;min-width:100px">
+<input type="text" id="wbImgCustomPath" placeholder="镜像绝对地址，如 /sdcard/123456/image/boot.img" style="flex:1;min-width:100px">
 </div>
 </div>
 <div class="custom-row">
@@ -1244,32 +1217,15 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 <div class="tool-group warn">
 <h3>关闭VBmeta校验</h3>
 <div class="row">
-<label>镜像来源：</label>
-<select id="vbmetaSource">
-<option value="file" selected>直接选择镜像文件</option>
-<option value="custom">自定义镜像地址</option>
-<option value="rom">已解压刷机包</option>
-</select>
-</div>
-<div class="row" id="vbmetaFileRow">
-<input type="file" id="vbmetaFileInput" style="display:none">
-<button class="btn small" id="vbmetaFileBtn" data-action="vbmeta-pick-file">📁 选择文件</button>
-<span id="vbmetaFileName" style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:60px">未选择文件</span>
-</div>
-<div class="row" id="vbmetaCustomRow" style="display:none">
-<input type="text" id="vbmetaCustomPath" placeholder="输入镜像绝对路径，如 /sdcard/vbmeta.img" style="flex:1;min-width:120px">
-</div>
-<div class="row" id="vbmetaRomRow" style="display:none">
-<select id="vbmetaRomSelect" style="width:180px"><option value="">选择刷机包</option></select>
-</div>
-<div class="row">
-<select id="vbmetaSelect" style="width:180px"><option value="">选择vbmeta镜像</option></select>
+<label>镜像地址：</label>
+<input type="text" id="vbmetaSelect" style="flex:1;min-width:180px" placeholder="镜像绝对路径，如 /sdcard/123456/image/vbmeta.img">
+<button class="btn secondary small" id="vbmetaPickBtn" title="从刷机包目录选择 vbmeta.img">📂 选择</button>
 </div>
 <div class="row">
 <button class="btn small warn" id="disableVbmetaBtn" disabled>执行关闭校验</button>
 </div>
-<p class="tip">可直接选择文件、输入自定义路径或从刷机包选择镜像；设备连接后自动检测 vbmeta 校验状态。</p>
-<p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并选择 vbmeta 镜像。</p>
+<p class="tip">输入镜像绝对路径，或点击「选择」从已解压刷机包选取 vbmeta.img；工具会校验路径安全性并执行关闭校验。</p>
+<p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并输入 vbmeta 镜像绝对地址。</p>
 </div>
 
 <div class="divider"></div>
@@ -1402,12 +1358,40 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 </div>
 </div>
 
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<!-- 重构新增：安全 DOM 访问与模块初始化系统，必须在 state.js 之前加载 -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <script>
 'use strict';
-
-// ===== js/core/safe-dom.js =====
-// flash_tool/static/js/safe-dom.js
+// 错误边界：init.js 现在通过 DOMContentLoaded + Modules.init() 统一初始化，
+// 这里保留兜底，避免旧代码或第三方脚本直接调用 init 导致重复执行。
+window.__legacyInit = function() {
+  console.warn('[保护] 检测到旧 init() 调用，已忽略（请使用 Modules.init）');
+};
+</script>
+<script>// flash_tool/static/js/safe-dom.js
 // ============ 安全 DOM 访问层 ============
 // 目标：解决前端「稍微改动就崩溃」的核心问题。
 // 1. 提供 $(id) 安全获取元素；元素不存在时返回空代理，避免 null 抛错。
@@ -1580,7 +1564,6 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 
 })(window);
 
-// ===== js/core/module-system.js =====
 // flash_tool/static/js/module-system.js
 // ============ 轻量级模块注册与初始化系统 ============
 // 目标：替代按 script 标签顺序加载的脆弱方式，使各功能模块显式声明依赖，
@@ -1722,7 +1705,6 @@ body[data-run-mode="backend"] .webusb-mode-only { display:none!important; }
 
 })(window);
 
-// ===== js/core/state.js =====
 // flash_tool/static/js/state.js
 // ============ 应用状态（集中管理） ============
 let _savedMode;
@@ -2000,7 +1982,6 @@ Modules.register('state', [], function initStateModule() {
     console.log('[state] 应用状态模块已初始化');
     return true;
 });
-// ===== js/core/config.js =====
 // flash_tool/static/js/config.js
 // ============ 后端地址配置 ============
 // 部署到 GitHub Pages 时，在这里配置你的后端服务器地址
@@ -2042,7 +2023,6 @@ Modules.register('state', [], function initStateModule() {
         writeLog('后端地址已切换为：' + (url || '当前页面'), 'ok');
     };
 })();
-// ===== js/core/api.js =====
 // flash_tool/static/js/api.js
 // ============ WebSocket 连接 ============
 function updateEnvStatusConnection() {
@@ -2372,7 +2352,6 @@ Modules.register('api', [], async function initApiModule() {
     console.log('[api] API 层已就绪（超时保护已启用）');
     return { apiRequest, apiGet, apiPost, parseApiResponse };
 });
-// ===== js/core/utils.js =====
 // flash_tool/static/js/utils.js
 // ============ 通用辅助函数 ============
 
@@ -2454,7 +2433,6 @@ Modules.register('utils', [], function initUtilsModule() {
     return true;
 });
 
-// ===== js/core/ui.js =====
 // flash_tool/static/js/ui.js
 // ============ 进度条 ============
 /**
@@ -2972,148 +2950,12 @@ function handleGlobalAction(e) {
                 if (rbBtn) rbBtn.click();
             }
             break;
-        case 'hydra-reload':
-            e.preventDefault();
-            hydraReload();
-            break;
-        case 'hydra-status':
-            e.preventDefault();
-            hydraStatus();
-            break;
-        case 'config-check':
-            e.preventDefault();
-            configCheckUpdate();
-            break;
-        case 'config-sync':
-            e.preventDefault();
-            configDoSync();
-            break;
     }
 }
 
-// ============ 热更新操作 ============
-async function hydraReload() {
-    const tip = $('hydraReloadTip');
-    const btn = $('hydraReloadBtn');
-    if (tip) tip.textContent = '正在刷新配置...';
-    if (btn) { btn.disabled = true; btn.textContent = '刷新中...'; }
-    try {
-        const res = await apiPost('/api/hydra/reload');
-        if (res && res.success) {
-            if (tip) tip.textContent = '✅ 配置已刷新，下次上传脚本将使用新配置。';
-            showToast('配置刷新成功');
-        } else {
-            if (tip) tip.textContent = '❌ 刷新失败：' + (res?.error || '未知错误');
-            showToast('配置刷新失败');
-        }
-    } catch (err) {
-        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新配置'; }
-    }
-}
-
-async function hydraStatus() {
-    const tip = $('hydraReloadTip');
-    if (tip) tip.textContent = '正在查询状态...';
-    try {
-        const res = await apiGet('/api/hydra/status');
-        if (res && res.success && res.data) {
-            const d = res.data;
-            const lines = [];
-            lines.push('📋 配置状态：');
-            if (d.rules) {
-                lines.push(`  分类规则: ${d.rules.exists ? '✅ 已加载' : '⚠️ 未找到'} (BAT ${d.rules.bat_feature_count} 个特征, SH ${d.rules.sh_feature_count} 个特征)`);
-            }
-            if (d.vip) {
-                lines.push(`  VIP 映射: ${d.vip.registry_entries} 条`);
-            }
-            if (d.pipeline_loader) {
-                lines.push(`  管线覆写: ${d.pipeline_loader.cached_count} 个已缓存`);
-            }
-            if (tip) tip.textContent = lines.join('\n');
-        } else {
-            if (tip) tip.textContent = '❌ 查询失败：' + (res?.error || '未知错误');
-        }
-    } catch (err) {
-        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
-    }
-}
-
-// ============ 服务器配置同步 ============
-async function configCheckUpdate() {
-    const urlInput = $('configServerUrl');
-    const tip = $('configSyncTip');
-    const serverUrl = urlInput ? urlInput.value.trim() : '';
-    if (!serverUrl) {
-        if (tip) tip.textContent = '❌ 请先输入服务器地址';
-        return;
-    }
-    if (tip) tip.textContent = '正在检查服务器...';
-    try {
-        const res = await apiGet('/api/config/sync-status?server_url=' + encodeURIComponent(serverUrl));
-        if (res && res.success && res.data) {
-            const d = res.data;
-            if (d.success === false) {
-                if (tip) tip.textContent = '❌ ' + (d.msg || '连接失败');
-                return;
-            }
-            const lines = [];
-            lines.push('☁️ 服务器配置状态：');
-            lines.push(`  服务器版本: ${d.server_version || '未知'}`);
-            lines.push(`  本地版本: ${d.local_version || '未知'}`);
-            if (d.last_sync) lines.push(`  上次同步: ${d.last_sync}`);
-            if (d.has_update) {
-                lines.push('  ✅ 服务器有新配置，可以同步');
-            } else {
-                lines.push('  ✅ 本地已是最新');
-            }
-            if (tip) tip.textContent = lines.join('\n');
-        } else {
-            if (tip) tip.textContent = '❌ 检查失败：' + (res?.error || '未知错误');
-        }
-    } catch (err) {
-        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
-    }
-}
-
-async function configDoSync() {
-    const urlInput = $('configServerUrl');
-    const tip = $('configSyncTip');
-    const btn = $('configSyncBtn');
-    const serverUrl = urlInput ? urlInput.value.trim() : '';
-    if (!serverUrl) {
-        if (tip) tip.textContent = '❌ 请先输入服务器地址';
-        return;
-    }
-    if (tip) tip.textContent = '正在从服务器同步配置...';
-    if (btn) { btn.disabled = true; btn.textContent = '同步中...'; }
-    try {
-        const res = await apiPost('/api/config/sync', { server_url: serverUrl });
-        if (res && res.success) {
-            const d = res.data || {};
-            if (tip) tip.textContent = `✅ ${res.msg || '同步完成'}\n服务器版本: ${d.server_version || '未知'}`;
-            showToast('配置同步成功');
-        } else {
-            if (tip) tip.textContent = '❌ 同步失败：' + (res?.error || '未知错误');
-            showToast('配置同步失败');
-        }
-    } catch (err) {
-        if (tip) tip.textContent = '❌ 网络错误：' + err.message;
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '⬇️ 同步配置'; }
-    }
-}
+// ============ 模块初始化 ============
 Modules.register('ui', [], function initUIModule() {
     initTheme();
-
-    // 加载服务器地址
-    fetch('/api/config/server-url').then(r => r.json()).then(res => {
-        if (res.success && res.data && res.data.server_url) {
-            const input = $('configServerUrl');
-            if (input && !input.value) input.value = res.data.server_url;
-        }
-    }).catch(() => {});
 
     // 日志按钮绑定
     $('clearLogBtn').onclick = () => clearLogForView('device');
@@ -3142,7 +2984,6 @@ Modules.register('ui', [], function initUIModule() {
     return true;
 });
 
-// ===== js/views/device.js =====
 // flash_tool/static/js/device.js
 // ============ 环境检查 ============
 async function checkEnv() {
@@ -3564,7 +3405,6 @@ function showFlashReport(success, detail = '') {
     writeLog(report, success ? 'ok' : 'err');
 }
 
-// ===== js/views/device_info.js =====
 // flash_tool/static/js/device_info.js
 // ============ 补充函数 ============
 function getFastbootModeLabel() {
@@ -3654,22 +3494,6 @@ function writeDeviceInfoHumanLog(info = {}) {
     formatDeviceInfoHuman(info).forEach(line => writeLog(line, 'info'));
 }
 
-/**
- * 检查当前是否已选择了 vbmeta 镜像（根据来源类型判断）。
- */
-function vbmetaHasImage() {
-    const sourceEl = document.getElementById('vbmetaSource');
-    if (!sourceEl) return false;
-    const source = sourceEl.value;
-    if (source === 'file') {
-        return !!(document.getElementById('vbmetaFileInput')?.dataset.uploadedPath);
-    } else if (source === 'custom') {
-        return !!(document.getElementById('vbmetaCustomPath')?.value.trim());
-    } else {
-        return !!(document.getElementById('vbmetaSelect')?.value);
-    }
-}
-
 function updateBtnState() {
     const backendFastbootUsable = backendReady && canFastboot;
     const backendAdbUsable = backendReady && canAdb;
@@ -3687,7 +3511,8 @@ function updateBtnState() {
     document.getElementById('readDeviceInfoBtn').disabled = !fastbootUsable;
     document.getElementById('querySlotBtn').disabled = !fastbootUsable;
     const _rcfb = document.getElementById('runCustomFastbootBtn'); if(_rcfb) _rcfb.disabled = !backendReady;
-    document.getElementById('disableVbmetaBtn').disabled = !vbmetaUsable || !vbmetaHasImage();
+    const vbmetaInput = document.getElementById('vbmetaSelect');
+    document.getElementById('disableVbmetaBtn').disabled = !vbmetaUsable || !(vbmetaInput && vbmetaInput.value.trim());
     document.getElementById('setSlotBtn').disabled = !fastbootUsable;
     document.getElementById('wipeBtn').disabled = !fastbootUsable;
     document.getElementById('wipeMetadataBtn').disabled = !fastbootUsable;
@@ -3709,15 +3534,15 @@ function updateButtonHints(state = {}) {
     const anyUsable = state.anyUsable ?? (fastbootUsable || canAdb || webusbAdbReady);
     const backendMode = state.backendMode ?? (appRunMode === 'backend');
     const vbmetaUsable = state.vbmetaUsable ?? (appRunMode === 'webusb' ? webusbFastbootReady : backendFastbootUsable);
-    const vbmetaSelected = vbmetaHasImage();
+    const vbmetaSelected = !!(document.getElementById('vbmetaSelect')?.value || '').trim();
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     setText('rebootHint', anyUsable ? '可用：已检测到 ADB 或 Fastboot 设备。' : '按钮不可用：请先检测 ADB/Fastboot 设备。');
     const modeName = appRunMode === 'webusb' ? 'WebUSB Fastboot' : '后端 Fastboot';
-    let vb = `可用：已选择 vbmeta 镜像，将通过 ${modeName} 执行关闭校验。`;
+    let vb = `可用：已输入 vbmeta 镜像地址，将通过 ${modeName} 执行关闭校验。`;
     if (!vbmetaUsable) vb = appRunMode === 'webusb'
         ? '按钮不可用：请先在 WebUSB 模式检测并连接 Fastboot/Bootloader 设备。'
         : '按钮不可用：请先检测到 Fastboot/Bootloader 设备。';
-    else if (!vbmetaSelected) vb = '按钮不可用：请先选择 vbmeta 镜像。';
+    else if (!vbmetaSelected) vb = '按钮不可用：请先输入 vbmeta 镜像绝对地址。';
     setText('vbmetaHint', vb);
     setText('slotHint', fastbootUsable ? '可用：已检测到 Fastboot 设备。切槽前请确认目标槽位可启动。' : '按钮不可用：需要 Fastboot 设备在线。');
     setText('wipeHint', fastbootUsable ? '可用但高危：执行后数据无法恢复。' : '按钮不可用：需要 Fastboot 设备在线。');
@@ -3730,7 +3555,6 @@ Modules.register('device-info', ['ui'], function initDeviceInfoModule() {
     return true;
 });
 
-// ===== js/views/rom.js =====
 // flash_tool/static/js/rom.js
 // ============ 镜像管理 ============
 async function loadProjectImages() {
@@ -3739,11 +3563,6 @@ async function loadProjectImages() {
         if (d.success) {
             const _cis = document.getElementById('customImgSelect');
             if (_cis) fillSelect(_cis, d.files, '选择镜像文件');
-            const _vs = document.getElementById('vbmetaSource');
-            const _vsel = document.getElementById('vbmetaSelect');
-            if (_vs && _vsel && _vs.value === 'local') {
-                fillSelect(_vsel, d.files, '选择vbmeta镜像');
-            }
             renderProjectImageList(d.files);
             writeLog(`手机目录镜像：${d.files.length} 个`, 'info');
         }
@@ -3849,7 +3668,6 @@ async function refreshExtractedRoms() {
         });
         renderExtractedRomList(dirNames, dirTypes, dirClassIds);
         fillSelect(document.getElementById('romProjectSelect'), dirNames, '选择已解压线刷项目');
-        fillSelect(document.getElementById('vbmetaRomSelect'), dirNames, '选择已解压刷机包');
     } catch(e) { writeLog('加载列表失败：' + e.message, 'err'); }
 }
 
@@ -4080,7 +3898,6 @@ Modules.register('rom', ['api','utils','device-info'], function initRomModule() 
     return true;
 });
 
-// ===== js/views/bat.js =====
 // flash_tool/static/js/bat.js
 // ============ BAT 脚本 ============
 async function refreshBatList() {
@@ -4133,6 +3950,8 @@ function stepsToShScript(steps) {
             lines.push(`$FASTBOOT resize-partition ${part} ${step.size || ''}`.trim());
         } else if (type === 'getvar') {
             lines.push(`$FASTBOOT getvar ${part}`);
+        } else if (type === 'wipe') {
+            lines.push(`$FASTBOOT -w`);
         } else if (type === 'devices') {
             lines.push(`$FASTBOOT devices`);
         } else if (step.raw) {
@@ -4244,6 +4063,7 @@ function renderSteps() {
             case 'boot': lab = '启动'; cls = 'type-boot'; cont = escHtml(item.fileName) || ''; break;
             case 'format': lab = '格式化'; cls = 'type-format'; cont = escHtml(item.part) || ''; break;
             case 'getvar': lab = '查询'; cls = 'type-getvar'; cont = escHtml(item.part || item.raw || '') || escHtml(item.type || ''); break;
+            case 'wipe': lab = '清空'; cls = 'type-erase'; cont = `清空 userdata（fastboot -w）`; break;
             case 'adb': lab = 'ADB'; cls = 'type-adb'; cont = escHtml(item.raw) || ''; break;
             case 'delete-logical-partition': lab = '删分区'; cls = 'type-erase'; cont = escHtml(item.part) || ''; badge = '<span class="step-badge badge-cow">COW</span>'; break;
             default:
@@ -4381,6 +4201,8 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
 
     document.getElementById('batSelect').onchange = () => {
         document.getElementById('importBatBtn').disabled = !document.getElementById('batSelect').value;
+        // v3.9.0: 参数输入框始终可见（从占用行内改为独占一行）
+        // 不再根据文件后缀隐藏/显示
     };
 
     document.getElementById('importBatBtn').onclick = async () => {
@@ -4392,7 +4214,8 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
         writeLog(`解析脚本：${bp}`);
         
         try {
-            const d = await apiPost('/api/rom/import_bat', {rom_name: rn, bat_path: bp});
+            const extra_args = document.getElementById('batExtraArgs').value || '';
+            const d = await apiPost('/api/rom/import_bat', {rom_name: rn, bat_path: bp, extra_args: extra_args});
             if (d.success) {
                 stepList = d.steps || [];
                 window._shContent = '';
@@ -4524,8 +4347,6 @@ Modules.register('bat', ['api','utils','rom'], function initBatModule() {
     console.log('[bat] BAT 模块已初始化');
     return true;
 });
-
-// ===== js/components/interactive_selector.js =====
 // flash_tool/static/js/interactive_selector.js
 // ============ 交互式脚本【逐层+进度选择器】 ============
 //
@@ -4899,7 +4720,6 @@ Modules.register('interactive-selector', [], function initInteractiveSelectorMod
     console.log('[interactive-selector] 交互式选择器模块已初始化');
     return true;
 });
-// ===== js/components/bat_risk.js =====
 // flash_tool/static/js/bat_risk.js
 
 // 禁用步骤编辑功能（复杂脚本模式）
@@ -5138,6 +4958,8 @@ function analyzeScriptRisks() {
         if (s.type === 'erase' && dataWipeParts.some(x => part.includes(x))) wipesData = true;
         // flash userdata 也算清数据
         if (s.type === 'flash' && dataWipeParts.some(x => part.includes(x))) wipesData = true;
+        // wipe 类型直接算清数据（fastboot -w）
+        if (s.type === 'wipe') wipesData = true;
         // -w 参数（fastboot -w update 或 flash -w）表示清数据
         const wipeParts = raw.split(' -w');
         if (raw.includes(' -w ') || (raw.includes(' -w') && wipeParts.length > 1 && wipeParts[1].trim().startsWith('update'))) hasWipeFlag = true;
@@ -5273,8 +5095,6 @@ Modules.register('bat-risk', [], function initBatRiskModule() {
     console.log('[bat-risk] 脚本风险模块已初始化');
     return true;
 });
-
-// ===== js/components/custom_flash.js =====
 // flash_tool/static/js/custom_flash.js
 // ============ 自定义单刷 ============
 let customImgSourceEl, customRomSelectEl, customImgSelectEl;
@@ -5479,7 +5299,13 @@ async function doFlashSingle(it, allowDangerous) {
 }
 
 async function fetchImageBytes(source, image, romName = '') {
-    const url = `/api/image/blob?source=${encodeURIComponent(source)}&image=${encodeURIComponent(image)}&rom_name=${encodeURIComponent(romName || '')}`;
+    let url;
+    if (source === 'path') {
+        // 绝对路径模式：使用 path_blob 接口，后端校验路径安全性
+        url = `/api/image/path_blob?path=${encodeURIComponent(image)}`;
+    } else {
+        url = `/api/image/blob?source=${encodeURIComponent(source)}&image=${encodeURIComponent(image)}&rom_name=${encodeURIComponent(romName || '')}`;
+    }
     const res = await fetch(url);
     if (!res.ok) throw new Error('读取镜像失败：' + await res.text());
     return new Uint8Array(await res.arrayBuffer());
@@ -5494,11 +5320,6 @@ async function resolveWebUsbImageBytes(imageName, options = {}) {
     // local / rom 模式：通过后端 API 读取镜像
     if (source === 'local' || source === 'rom') {
         return await fetchImageBytes(source, imageName, romName);
-    }
-
-    // custom / file 模式：imageName 是绝对路径，用 custom 源读取
-    if (source === 'custom' || source === 'file') {
-        return await fetchImageBytes('custom', imageName, '');
     }
     
     // 兼容旧逻辑（线刷脚本批量刷写）
@@ -5638,7 +5459,6 @@ Modules.register('custom-flash', ['api','utils','device-info'], function initCus
     return true;
 });
 
-// ===== js/views/flash.js =====
 // flash_tool/static/js/flash.js
 // ============ 线刷 ============
 async function startBatchFlash() {
@@ -5926,7 +5746,6 @@ Modules.register('flash', ['api','utils','bat','bat-risk'], function initFlashMo
     return true;
 });
 
-// ===== js/components/toolbox_ops.js =====
 // flash_tool/static/js/toolbox_ops.js
 
 // ============ 重启 ============
@@ -6181,7 +6000,6 @@ Modules.register('toolbox-ops', ['api','utils','device-info'], function initTool
     return true;
 });
 
-// ===== js/components/webusb.js =====
 // flash_tool/static/js/webusb.js
 function validateWebUsbScriptImages() {
     if (stepList.length === 0) return {ok: true, missing: []};
@@ -6465,7 +6283,6 @@ Modules.register('webusb', [], function initWebusbModule() {
     return true;
 });
 
-// ===== js/views/workbench.js =====
 // flash_tool/static/js/workbench.js
 // ============ 工作台 v3.2.0 ============
 // 注：wbSteps / wbExecuting / wbDetectedPartitions / wbCurrentType 已在 state.js 中声明
@@ -6512,43 +6329,9 @@ function wbPartSourceChange() {
 // 镜像来源切换
 function wbImgSourceChange() {
     const v = document.getElementById('wbImgSource').value;
-    document.getElementById('wbImgFileRow').style.display = v === 'file' ? '' : 'none';
     document.getElementById('wbImgRomRow').style.display = v === 'rom' ? '' : 'none';
     document.getElementById('wbImgCustomRow').style.display = v === 'custom' ? '' : 'none';
     if (v === 'rom') wbLoadRomPackages();
-}
-
-// 选择文件上传
-function wbPickImageFile() {
-    const input = document.getElementById('wbImgFileInput');
-    if (!input) return;
-    input.onchange = async function() {
-        if (!this.files || !this.files[0]) return;
-        const file = this.files[0];
-        const nameEl = document.getElementById('wbImgFileName');
-        if (nameEl) nameEl.textContent = '上传中...';
-        try {
-            const fd = new FormData();
-            fd.append('file', file);
-            const res = await fetch('/api/images/upload', { method: 'POST', body: fd });
-            const d = await res.json();
-            if (d.success && d.data) {
-                // 存储上传后的路径
-                document.getElementById('wbImgFileInput').dataset.uploadedPath = d.data.path;
-                if (nameEl) nameEl.textContent = file.name;
-                writeLog(`工作台：文件 ${file.name} 已上传`, 'ok');
-            } else {
-                if (nameEl) nameEl.textContent = '上传失败';
-                writeLog('工作台：文件上传失败：' + (d.error || '未知错误'), 'err');
-            }
-        } catch(e) {
-            if (nameEl) nameEl.textContent = '上传失败';
-            writeLog('工作台：文件上传异常：' + e.message, 'err');
-        }
-        // 清空 input 的 value 以便重复选择同一文件
-        this.value = '';
-    };
-    input.click();
 }
 
 // 加载线刷包列表
@@ -6607,7 +6390,6 @@ function wbGetCurrentPartName() {
 // 获取当前镜像路径
 function wbGetCurrentImagePath() {
     const src = document.getElementById('wbImgSource').value;
-    if (src === 'file') return document.getElementById('wbImgFileInput').dataset.uploadedPath || '';
     if (src === 'rom') return document.getElementById('wbRomImgSelect').value;
     if (src === 'custom') return document.getElementById('wbImgCustomPath').value.trim();
     return '';
@@ -6986,9 +6768,6 @@ function handleWorkbenchAction(e) {
     if (action === 'wb-toggle-qa') {
         e.preventDefault();
         wbToggleQA(btn.dataset.type);
-    } else if (action === 'wb-pick-image-file') {
-        e.preventDefault();
-        wbPickImageFile();
     } else if (action === 'wb-quick-action') {
         e.preventDefault();
         wbQuickAction(btn.dataset.cmdType, btn.dataset.cmd, btn.dataset.label, btn.dataset.level);
@@ -7074,22 +6853,14 @@ Modules.register('workbench', ['api','utils'], function initWorkbenchModule() {
     return true;
 });
 
-// ===== js/views/changelog.js =====
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.8.7 (2026-07-07)
-- 新增：工作台镜像来源新增「选择文件」选项（默认），可直接从手机选择任意格式文件上传刷写
-- 新增：工具页关闭VBmeta校验新增「直接选择镜像文件」方式（默认），支持任意格式文件
-- 新增：工具页关闭VBmeta校验新增「自定义镜像地址」输入框，可直接输入绝对路径
-- 新增：文件上传API（/api/images/upload），对文件格式无限制
-- 新增：get_image_path 支持 custom 源（直接使用绝对路径）
-- 新增：服务器端配置管理后台（/admin），网页编辑配置文件
-- 新增：本地端从服务器同步配置功能（版本页「同步配置」按钮）
-- 修复：VipLoader registry.yaml 不自动刷新的问题
-- 优化：ScriptClassifier 改为全局单例 + mtime 缓存，避免每次解析都读文件
-- 优化：前端镜像路径与后端执行路径一致性（get_image_path 处理绝对路径）
-- 优化：预览命令参数顺序与实际执行一致（prefixParams 在 flash 之前）
+const CHANGELOG_TEXT = `v3.9.0 (2026-07-09)
+- 亮剑架构引擎落地失败，重启天树引擎
+- 工具箱VB校验增加文件选择按钮+绝对路径输入双模式
+- 线刷参数输入框移至解析脚本下一行，占满宽度
+- 版本号更新至 3.9.0
 
 v3.8.5 (2026-07-06)
 - 重构：BAT 沙箱作为所有 BAT 子管线私有引擎（每个管线独立的 bat_sandbox 副本）
@@ -7533,8 +7304,6 @@ Modules.register('changelog', ['state'], function initChangelogModule(state) {
     console.log('[changelog] 更新日志模块已初始化');
     return true;
 });
-
-// ===== js/views/tools.js =====
 // flash_tool/static/js/tools.js
 // 版本/工具模块：依赖 changelog.js 提供的 window.renderVersionChangelog
 
@@ -7620,161 +7389,67 @@ async function doUpdate() {
     });
 }
 
-// ============ VBmeta（工具页：镜像加载与关闭校验） ============
+// ============ VBmeta（工具页：镜像地址输入与关闭校验） ============
 /**
- * vbmeta 镜像来源切换回调。
- * 来源为 file 时显示文件选择行；custom 时显示自定义路径输入框；
- * rom 时显示刷机包选择行并加载包内镜像；local 时从手机目录加载镜像列表。
+ * vbmeta 镜像地址输入变化回调：仅刷新按钮状态。
  */
-async function onVbmetaSourceChange() {
-    const source = document.getElementById('vbmetaSource').value;
-    // 显示/隐藏各来源行
-    document.getElementById('vbmetaFileRow').style.display = source === 'file' ? 'flex' : 'none';
-    document.getElementById('vbmetaCustomRow').style.display = source === 'custom' ? 'flex' : 'none';
-    document.getElementById('vbmetaRomRow').style.display = source === 'rom' ? 'flex' : 'none';
-
-    // vbmetaSelect 仅在 local/rom 模式下使用
-    const vbmetaSelectRow = document.getElementById('vbmetaSelect').parentElement;
-    if (source === 'local' || source === 'rom') {
-        vbmetaSelectRow.style.display = '';
-    } else {
-        vbmetaSelectRow.style.display = 'none';
-    }
-
-    document.getElementById('vbmetaSelect').value = '';
-    updateBtnState();
-
-    if (source === 'rom') {
-        await loadVbmetaRomImages();
-    } else if (source === 'local') {
-        // 从手机目录加载镜像并填充 vbmetaSelect
-        try {
-            const d = await apiGet('/api/images');
-            if (d.success) {
-                fillSelect(document.getElementById('vbmetaSelect'), d.files, '选择vbmeta镜像');
-            }
-        } catch(e) { writeLog('加载手机目录镜像失败：' + e.message, 'err'); }
-    }
+function onVbmetaInputChange() {
     updateBtnState();
 }
 
 /**
- * 选择文件上传（vbmeta 用）。
- * 对文件格式无限制。
- */
-function vbmetaPickFile() {
-    const input = document.getElementById('vbmetaFileInput');
-    if (!input) return;
-    input.onchange = async function() {
-        if (!this.files || !this.files[0]) return;
-        const file = this.files[0];
-        const nameEl = document.getElementById('vbmetaFileName');
-        if (nameEl) nameEl.textContent = '上传中...';
-        try {
-            const fd = new FormData();
-            fd.append('file', file);
-            const res = await fetch('/api/images/upload', { method: 'POST', body: fd });
-            const d = await res.json();
-            if (d.success && d.data) {
-                this.dataset.uploadedPath = d.data.path;
-                if (nameEl) nameEl.textContent = file.name;
-                writeLog(`vbmeta：文件 ${file.name} 已上传`, 'ok');
-                updateBtnState();
-            } else {
-                if (nameEl) nameEl.textContent = '上传失败';
-                writeLog('vbmeta：文件上传失败：' + (d.error || '未知错误'), 'err');
-            }
-        } catch(e) {
-            if (nameEl) nameEl.textContent = '上传失败';
-            writeLog('vbmeta：文件上传异常：' + e.message, 'err');
-        }
-        this.value = '';
-    };
-    input.click();
-}
-
-/**
- * 加载可用刷机包列表并填充到 vbmetaRomSelect 下拉框。
+ * 加载 VBmeta 镜像列表：从已解压刷机包中自动扫描 vbmeta.img 路径填入输入框。
+ * 在初始化时和解压完成后自动调用。
  */
 async function loadVbmetaRomList() {
+    const vbmetaInput = document.getElementById('vbmetaSelect');
+    if (!vbmetaInput) return;
     try {
-        const d = await apiGet('/api/rom/list');
-        const dirNames = (d.dirs || []).map(item => typeof item === 'object' ? item.name : item);
-        fillSelect(document.getElementById('vbmetaRomSelect'), dirNames, '选择刷机包');
-    } catch(e) {}
-}
-
-/**
- * vbmeta 刷机包选择变化回调：重置镜像选择框并加载该包内的镜像列表。
- */
-async function onVbmetaRomSelectChange() {
-    document.getElementById('vbmetaSelect').innerHTML = '<option value="">选择vbmeta镜像</option>';
-    updateBtnState();
-    await loadVbmetaRomImages();
-    updateBtnState();
-}
-
-/**
- * vbmeta 镜像选择变化回调：仅刷新相关按钮状态。
- */
-async function onVbmetaSelectChange() {
-    updateBtnState();
-}
-
-/**
- * 根据当前选中的刷机包加载其内部的 vbmeta 镜像列表。
- */
-async function loadVbmetaRomImages() {
-    const rn = document.getElementById('vbmetaRomSelect').value;
-    if (!rn) {
-        document.getElementById('vbmetaSelect').innerHTML = '<option value="">选择vbmeta镜像</option>';
-        updateBtnState();
-        return;
-    }
-    try {
-        const d = await apiGet(`/api/rom/images?rom_name=${encodeURIComponent(rn)}`);
-        if (d.success) {
-            fillSelect(document.getElementById('vbmetaSelect'), d.files, '选择vbmeta镜像');
-            writeLog(`加载包内镜像：${d.files.length} 个`, 'info');
-            updateBtnState();
+        const data = await apiGet('/api/rom/projects');
+        const projects = (data && data.projects) || [];
+        if (projects.length === 0) return;
+        // 取第一个项目尝试填充 vbmeta.img 的常见路径
+        const base = `/sdcard/123456/${projects[0]}/images`;
+        // 先尝试检测是否有标准的 vbmeta.img 或 vbmeta_a.img
+        const candidates = ['vbmeta.img', 'vbmeta_a.img', 'vbmeta_b.img'];
+        for (const fn of candidates) {
+            try {
+                const check = await fetch(`${App.backendUrl || ''}/api/fs/exists`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: `${base}/${fn}`})
+                });
+                const r = await check.json();
+                if (r.exists) {
+                    vbmetaInput.placeholder = `如 ${base}/${fn}`;
+                    return;
+                }
+            } catch(e) { /* 忽略单文件检测错误 */ }
         }
-    } catch(e) { writeLog('加载失败：' + e.message, 'err'); }
-    updateBtnState();
+        vbmetaInput.placeholder = `镜像绝对路径，如 ${base}/vbmeta.img`;
+    } catch(e) {
+        console.warn('loadVbmetaRomList 获取项目列表失败:', e);
+    }
 }
 
 // ============ 关闭VBmeta校验 ============
 /**
- * 关闭 VBmeta 校验：刷入选中的 vbmeta 镜像并附加 --disable-verity --disable-verification。
+ * 关闭 VBmeta 校验：刷入输入的 vbmeta 镜像并附加 --disable-verity --disable-verification。
  * 支持后端模式和 WebUSB 模式，执行前会弹出二次确认。
+ * 镜像使用绝对路径（source=path），后端会校验路径安全性。
  */
 async function disableVbmeta() {
-    const source = document.getElementById('vbmetaSource').value;
-    let img = '';
-    let romName = '';
-
-    if (source === 'file') {
-        img = document.getElementById('vbmetaFileInput').dataset.uploadedPath || '';
-        if (!img) { writeLog('请先选择文件', 'err'); return; }
-    } else if (source === 'custom') {
-        img = document.getElementById('vbmetaCustomPath').value.trim();
-        if (!img) { writeLog('请输入镜像绝对路径', 'err'); return; }
-    } else {
-        img = document.getElementById('vbmetaSelect').value;
-        if (!img) { writeLog('请选择vbmeta镜像', 'err'); return; }
-        if (source === 'rom') romName = document.getElementById('vbmetaRomSelect').value;
-    }
+    const img = document.getElementById('vbmetaSelect').value.trim();
+    if (!img) return;
 
     showConfirm('操作确认', '刷入 vbmeta 并关闭校验（--disable-verity --disable-verification），确认继续？', async () => {
         setModuleStatus('toolbox', '工具箱状态：准备刷入 vbmeta 并关闭校验。', 'warn');
         showModuleProgress('toolbox', '准备刷入 vbmeta');
-        // file 源的路径是上传后的绝对路径，后端用 custom 源处理
-        const backendSource = source === 'file' ? 'custom' : source;
         const reqData = {
             extra: '--disable-verity --disable-verification',
-            source: backendSource,
+            source: 'path',
             image: img
         };
-        if (source === 'rom') reqData.rom_name = romName;
         if (appRunMode === 'webusb') {
             if (!webusbFastbootReady || !webusbFastboot) {
                 setModuleStatus('toolbox', 'WebUSB Fastboot 未连接，无法刷写 vbmeta。', 'err');
@@ -7782,7 +7457,7 @@ async function disableVbmeta() {
             }
             try {
                 writeLog('WebUSB模式：刷入 vbmeta 并关闭 verity/verification。', 'tip');
-                const bytes = await fetchImageBytes(source, img, romName);
+                const bytes = await fetchImageBytes('path', img);
                 await webusbFastboot.flash('vbmeta', bytes, p => updateModuleProgress('toolbox', p, 'WebUSB刷写 vbmeta'));
                 updateModuleProgress('toolbox', 100, 'vbmeta 已刷入');
                 setModuleStatus('toolbox', 'WebUSB已刷入 vbmeta，校验关闭完成。', 'ok');
@@ -7828,6 +7503,52 @@ async function disableVbmeta() {
     }, false);
 }
 
+// ============ 选择 VBmeta 镜像（从已解压刷机包列表选取） ============
+async function pickVbmetaImage() {
+    try {
+        const data = await apiGet('/api/rom/projects');
+        const projects = (data && data.projects) || [];
+        if (projects.length === 0) {
+            alert('没有已解压的刷机包项目，请先在线刷页解压线刷包。');
+            return;
+        }
+        let msg = '选择刷机包项目以选取 vbmeta.img：\n';
+        projects.forEach((p, i) => { msg += `${i + 1}. ${p}\n`; });
+        const idx = prompt(msg + '\n请输入编号 (1~' + projects.length + ')：');
+        if (!idx) return;
+        const i = parseInt(idx, 10);
+        if (isNaN(i) || i < 1 || i > projects.length) { alert('无效编号'); return; }
+        const project = projects[i - 1];
+
+        // 获取该项目脚本/文件列表
+        const flist = await apiGet('/api/rom/scripts?project=' + encodeURIComponent(project));
+        const files = flist.files || flist.scripts || [];
+        const vbmetaFiles = files.filter(f => f.toLowerCase().includes('vbmeta'));
+        const input = document.getElementById('vbmetaSelect');
+        if (!input) return;
+        if (vbmetaFiles.length === 0) {
+            let fileMsg = '该项目下未找到 vbmeta 文件，请手动输入路径或选其他项目。\n';
+            fileMsg += '可用文件列表：\n' + files.map((f, j) => `${j + 1}. ${f}`).join('\n');
+            alert(fileMsg);
+            input.value = `/sdcard/123456/${project}/images/vbmeta.img`;
+        } else if (vbmetaFiles.length === 1) {
+            input.value = `/sdcard/123456/${project}/images/${vbmetaFiles[0]}`;
+        } else {
+            let selMsg = '找到多个 vbmeta 文件：\n';
+            vbmetaFiles.forEach((f, j) => { selMsg += `${j + 1}. ${f}\n`; });
+            const selIdx = prompt(selMsg + '\n请选择编号 (1~' + vbmetaFiles.length + ')：');
+            if (!selIdx) return;
+            const si = parseInt(selIdx, 10);
+            if (isNaN(si) || si < 1 || si > vbmetaFiles.length) { alert('无效编号'); return; }
+            input.value = `/sdcard/123456/${project}/images/${vbmetaFiles[si - 1]}`;
+        }
+        onVbmetaInputChange();
+    } catch(e) {
+        console.warn('选择 VBmeta 镜像失败:', e);
+        alert('获取刷机包列表失败: ' + e.message);
+    }
+}
+
 // ============ 版本/工具模块事件委托 ============
 function handleVersionAction(e) {
     const btn = e.target.closest('[data-action]');
@@ -7839,41 +7560,30 @@ function handleVersionAction(e) {
     } else if (action === 'do-update') {
         e.preventDefault();
         doUpdate();
-    } else if (action === 'vbmeta-pick-file') {
-        e.preventDefault();
-        vbmetaPickFile();
     }
 }
 
 // ============ 模块初始化 ============
 Modules.register('tools', ['api','utils','device-info'], function initToolsModule() {
-    document.getElementById('vbmetaSource').onchange = onVbmetaSourceChange;
-    document.getElementById('vbmetaRomSelect').onchange = onVbmetaRomSelectChange;
-    document.getElementById('vbmetaSelect').onchange = onVbmetaSelectChange;
-    // 自定义路径输入时刷新按钮状态
-    const vbmetaCustomPathEl = document.getElementById('vbmetaCustomPath');
-    if (vbmetaCustomPathEl) vbmetaCustomPathEl.oninput = updateBtnState;
-    document.getElementById('disableVbmetaBtn').onclick = disableVbmeta;
-
-    // 绑定事件委托（含 vbmeta 文件选择按钮）— 绑定到工具页和版本页
-    const toolsView = document.querySelector('[data-view="tools"]') || document.body;
-    toolsView.addEventListener('click', handleVersionAction);
-    const versionView = document.querySelector('[data-view="version"]');
-    if (versionView) versionView.addEventListener('click', handleVersionAction);
-
-    // 初始化时根据默认来源隐藏/显示对应行
-    onVbmetaSourceChange();
+    const vbmetaInput = document.getElementById('vbmetaSelect');
+    if (vbmetaInput) {
+        vbmetaInput.oninput = onVbmetaInputChange;
+        vbmetaInput.onchange = onVbmetaInputChange;
+    }
+    const vbmetaPickBtn = document.getElementById('vbmetaPickBtn');
+    if (vbmetaPickBtn) vbmetaPickBtn.onclick = pickVbmetaImage;
+    const disableVbmetaBtn = document.getElementById('disableVbmetaBtn');
+    if (disableVbmetaBtn) disableVbmetaBtn.onclick = disableVbmeta;
 
     loadVersion();
 
     console.log('[tools] 版本/工具模块已初始化');
     return true;
 });
-
-// ===== js/components/upload.js =====
 // ============ 脚本上传功能（自包含重写版）============
 // v2 - 脱离 _upload_records.json，直接用 WebDAV 文件名列表
 var _selectedUploadFile = null;
+var _isUploading = false;
 // ---- 内部常量 ----
 var UP = {};
 // ---- 配置说明 ----
@@ -8257,11 +7967,13 @@ function onUploadFileSelect(event) {
 }
 // ---- 上传脚本 ----
 function submitUpload() {
-    if (!_selectedUploadFile) return;
+    if (!_selectedUploadFile || _isUploading) return;
+    _isUploading = true;
     var btn = document.getElementById('uploadSubmitBtn');
     var progressWrap = document.getElementById('uploadProgressWrap');
     var progressBar = document.getElementById('uploadProgressBar');
     var result = document.getElementById('uploadResult');
+    var fileInput = document.getElementById('uploadFileInput');
     btn.disabled = true;
     btn.textContent = '上传中...';
     progressWrap.style.display = '';
@@ -8285,6 +7997,10 @@ function submitUpload() {
                 result.textContent = '✅ 上传成功';
                 btn.disabled = false;
                 btn.textContent = '确认上传';
+                _isUploading = false;
+                _selectedUploadFile = null;
+                if (fileInput) fileInput.value = '';
+                document.getElementById('uploadFileInfo').textContent = '';
                 setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
                 refreshUploadList();
             },
@@ -8294,9 +8010,16 @@ function submitUpload() {
                 result.textContent = '❌ 上传失败';
                 btn.disabled = false;
                 btn.textContent = '确认上传';
+                _isUploading = false;
                 setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
             }
         );
+    };
+    reader.onerror = function() {
+        _isUploading = false;
+        btn.disabled = false;
+        btn.textContent = '确认上传';
+        showToast('读取文件失败');
     };
     reader.readAsText(file);
 }
@@ -8342,9 +8065,8 @@ function handleUploadAction(e) {
 
 // ============ 模块初始化 ============
 Modules.register('upload', [], function initUploadModule() {
-    var uploadHistoryList = document.getElementById('uploadHistoryList');
-    if (uploadHistoryList) uploadHistoryList.addEventListener('click', handleUploadAction);
-
+    // 脚本列表点击与查看器关闭按钮都通过 body 事件委托处理，
+    // 避免在 uploadHistoryList 上再注册一次导致弹窗打开两次。
     document.body.addEventListener('click', handleUploadAction);
 
     var uploadFileInput = document.getElementById('uploadFileInput');
@@ -8362,7 +8084,6 @@ Modules.register('upload', [], function initUploadModule() {
     return true;
 });
 
-// ===== js/core/init.js =====
 // flash_tool/static/js/init.js
 // ============ 应用初始化 ============
 // 改造后：通过 Modules.register 注册初始化模块，DOMReady 后统一调用。
@@ -8484,321 +8205,5 @@ window.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-
-
-// ============ WebUSB Fastboot 实现（v3.8.7 新增） ============
-// 基于 WebUSB API 实现 Fastboot 协议通信
-
-const FASTBOOT_USB_CLASS = 0xFF;
-const FASTBOOT_USB_SUBCLASS = 0x42;
-const FASTBOOT_USB_PROTOCOL = 0x03;
-const FASTBOOT_MAX_PACKET_SIZE = 64;
-const FASTBOOT_RESPONSE_TIMEOUT = 30000;
-
-// Fastboot 命令类型
-const FASTBOOT_CMD = {
-    CONTINUE: 0x464E4943, // 'CONT'
-    DATA: 0x41544144,     // 'DATA'
-    COMPLETE: 0x4554504F, // 'OKAY'
-    FAIL: 0x4C494146,     // 'FAIL'
-    INFO: 0x4F464E49,     // 'INFO'
-    TEXT: 0x54534554,     // 'TEXT'
-};
-
-class WebUsbFastboot {
-    constructor(device) {
-        this.device = device;
-        this.interfaceNumber = -1;
-        this.inEndpoint = null;
-        this.outEndpoint = null;
-        this.maxPacketSize = FASTBOOT_MAX_PACKET_SIZE;
-    }
-
-    async connect() {
-        if (!this.device.opened) {
-            await this.device.open();
-        }
-
-        // 查找 Fastboot 接口
-        const interfaces = this.device.configuration.interfaces;
-        let found = false;
-        for (const iface of interfaces) {
-            const isFastboot = (
-                iface.alternates.some(alt =>
-                    alt.interfaceClass === FASTBOOT_USB_CLASS &&
-                    alt.interfaceSubclass === FASTBOOT_USB_SUBCLASS
-                ) ||
-                iface.alternates.some(alt =>
-                    alt.interfaceClass === 0xFF &&
-                    alt.interfaceSubclass === 0x42 &&
-                    alt.interfaceProtocol === 0x03
-                )
-            );
-            if (isFastboot) {
-                this.interfaceNumber = iface.interfaceNumber;
-                await this.device.claimInterface(this.interfaceNumber);
-                // 查找 IN/OUT 端点
-                const alt = iface.alternates[0];
-                for (const ep of alt.endpoints) {
-                    if (ep.direction === 'in' && ep.type === 'bulk') {
-                        this.inEndpoint = ep;
-                    } else if (ep.direction === 'out' && ep.type === 'bulk') {
-                        this.outEndpoint = ep;
-                    }
-                }
-                if (this.inEndpoint && this.outEndpoint) {
-                    found = true;
-                    break;
-                }
-            }
-        }
-
-        if (!found) {
-            // 宽松匹配：找任意 bulk IN/OUT 端点对
-            for (const iface of interfaces) {
-                try {
-                    await this.device.claimInterface(iface.interfaceNumber);
-                    const alt = iface.alternates[0];
-                    for (const ep of alt.endpoints) {
-                        if (ep.direction === 'in' && ep.type === 'bulk' && !this.inEndpoint) {
-                            this.inEndpoint = ep;
-                            this.interfaceNumber = iface.interfaceNumber;
-                        } else if (ep.direction === 'out' && ep.type === 'bulk' && !this.outEndpoint) {
-                            this.outEndpoint = ep;
-                        }
-                    }
-                    if (this.inEndpoint && this.outEndpoint) {
-                        found = true;
-                        break;
-                    }
-                    await this.device.releaseInterface(iface.interfaceNumber);
-                } catch(e) { /* continue */ }
-            }
-        }
-
-        if (!found) {
-            throw new Error('未找到 Fastboot 接口（需要 bulk IN/OUT 端点）');
-        }
-
-        // 尝试获取 max packet size
-        try {
-            const info = await this._sendCommand('getvar:max-download-size');
-            const m = info.match(/max-download-size:\s*(\w+)/);
-            if (m) {
-                this.maxDownloadSize = parseInt(m[1], 16);
-            }
-        } catch(e) {
-            this.maxDownloadSize = 512 * 1024 * 1024; // 默认 512MB
-        }
-
-        return true;
-    }
-
-    async _rawSend(data) {
-        await this.device.transferOut(this.outEndpoint.endpointNumber, data);
-    }
-
-    async _rawReceive(timeout = FASTBOOT_RESPONSE_TIMEOUT) {
-        const result = await this.device.transferIn(this.inEndpoint.endpointNumber, 4096);
-        if (result.status !== 'ok') {
-            throw new Error('USB 接收失败: ' + result.status);
-        }
-        return result.data;
-    }
-
-    _strToBytes(str) {
-        const enc = new TextEncoder();
-        return enc.encode(str);
-    }
-
-    _bytesToStr(buf) {
-        const dec = new TextDecoder();
-        return dec.decode(buf);
-    }
-
-    _readUInt32LE(buf, offset = 0) {
-        return (buf[offset] | (buf[offset+1] << 8) | (buf[offset+2] << 16) | (buf[offset+3] << 24)) >>> 0;
-    }
-
-    async _sendCommand(cmdStr) {
-        const data = this._strToBytes(cmdStr);
-        if (data.length > 64) throw new Error('命令过长: ' + cmdStr);
-        await this._rawSend(data);
-        return await this._readResponse();
-    }
-
-    async _readResponse(timeout = FASTBOOT_RESPONSE_TIMEOUT) {
-        const startTime = Date.now();
-        let info = '';
-        while (Date.now() - startTime < timeout) {
-            const result = await this.device.transferIn(this.inEndpoint.endpointNumber, 64);
-            if (result.status !== 'ok' || !result.data || result.data.byteLength < 4) {
-                continue;
-            }
-            const buf = new Uint8Array(result.data);
-            const cmdType = this._readUInt32LE(buf, 0);
-            const payload = this._bytesToStr(buf.slice(4));
-
-            if (cmdType === FASTBOOT_CMD.INFO) {
-                info += payload + '\n';
-            } else if (cmdType === FASTBOOT_CMD.COMPLETE) {
-                return info + payload;
-            } else if (cmdType === FASTBOOT_CMD.FAIL) {
-                throw new Error('Fastboot FAIL: ' + payload);
-            } else if (cmdType === FASTBOOT_CMD.DATA) {
-                return payload; // 返回 data size hex
-            } else if (cmdType === FASTBOOT_CMD.TEXT) {
-                return payload;
-            }
-        }
-        throw new Error('Fastboot 响应超时');
-    }
-
-    async getvar(name) {
-        return await this._sendCommand('getvar:' + name);
-    }
-
-    async flash(partition, imageBytes, onProgress) {
-        // 发送 flash 命令
-        await this._sendCommand('flash:' + partition);
-
-        // 发送 data 命令（带文件大小）
-        const sizeHex = (imageBytes.byteLength).toString(16).padStart(8, '0');
-        const dataCmd = this._strToBytes('data:' + sizeHex);
-        await this._rawSend(dataCmd);
-
-        // 读取 DATA 响应
-        const resp = await this._readResponse();
-        // 如果返回 OKAY 而非 DATA，说明设备拒绝了
-        // 正常情况下设备返回 DATA + 下载大小
-
-        // 分块发送数据
-        const chunkSize = this.maxPacketSize || 64;
-        // 尝试更大的块以提高速度
-        const sendChunkSize = Math.min(1024 * 1024, imageBytes.byteLength); // 1MB 块
-        let offset = 0;
-        while (offset < imageBytes.byteLength) {
-            const end = Math.min(offset + sendChunkSize, imageBytes.byteLength);
-            const chunk = imageBytes.slice(offset, end);
-            await this._rawSend(chunk);
-            offset = end;
-            if (onProgress) {
-                onProgress(Math.round(offset / imageBytes.byteLength * 100));
-            }
-        }
-
-        // 等待 COMPLETE 响应
-        await this._readResponse();
-    }
-
-    async erase(partition) {
-        return await this._sendCommand('erase:' + partition);
-    }
-
-    async reboot(target) {
-        const cmd = target && target !== 'system' ? 'reboot-' + target : 'reboot';
-        return await this._sendCommand(cmd);
-    }
-
-    async setActive(slot) {
-        return await this._sendCommand('set_active:' + slot);
-    }
-
-    async oem(sub) {
-        return await this._sendCommand('oem ' + sub);
-    }
-
-    async flashing(sub) {
-        return await this._sendCommand('flashing ' + sub);
-    }
-
-    async disconnect() {
-        if (this.interfaceNumber >= 0) {
-            try {
-                await this.device.releaseInterface(this.interfaceNumber);
-            } catch(e) {}
-        }
-    }
-}
-
-// ============ 缺失的全局函数实现 ============
-
-async function claimWebUsbInterface(device) {
-    // 尝试 ADB 接口（class 0xFF, subclass 0x42, protocol 0x01）
-    try {
-        if (!device.opened) await device.open();
-        const interfaces = device.configuration.interfaces;
-        for (const iface of interfaces) {
-            const isAdb = iface.alternates.some(alt =>
-                alt.interfaceClass === 0xFF &&
-                alt.interfaceSubclass === 0x42 &&
-                alt.interfaceProtocol === 0x01
-            );
-            if (isAdb) {
-                await device.claimInterface(iface.interfaceNumber);
-                return true;
-            }
-        }
-    } catch(e) {
-        console.warn('[WebUSB] ADB 接口探测失败:', e.message);
-    }
-    return false;
-}
-
-async function claimWebUsbFastboot(device) {
-    try {
-        webusbFastboot = new WebUsbFastboot(device);
-        await webusbFastboot.connect();
-        return true;
-    } catch(e) {
-        console.warn('[WebUSB] Fastboot 接口探测失败:', e.message);
-        webusbFastboot = null;
-        return false;
-    }
-}
-
-async function runWebUsbFastbootCommand(cmd) {
-    if (!webusbFastboot) throw new Error('WebUSB Fastboot 未连接');
-
-    const command = cmd.command;
-    if (command === 'flash') {
-        let bytes = cmd.payload;
-        if (typeof bytes === 'string' || bytes instanceof ArrayBuffer) {
-            bytes = new Uint8Array(bytes);
-        }
-        if (!(bytes instanceof Uint8Array)) {
-            throw new Error('镜像数据格式错误');
-        }
-        await webusbFastboot.flash(cmd.partition, bytes, cmd.onProgress);
-    } else if (command === 'erase') {
-        await webusbFastboot.erase(cmd.partition);
-    } else if (command === 'reboot') {
-        await webusbFastboot.reboot(cmd.target);
-    } else if (command === 'set_active') {
-        await webusbFastboot.setActive(cmd.slot);
-    } else if (command === 'oem') {
-        await webusbFastboot.oem(cmd.sub);
-    } else if (command === 'flashing') {
-        await webusbFastboot.flashing(cmd.sub);
-    } else if (command === 'getvar') {
-        return await webusbFastboot.getvar(cmd.variable);
-    } else {
-        throw new Error('不支持的 WebUSB 命令: ' + command);
-    }
-    return 'OK';
-}
-
-async function webusbEraseWithFallback(partition) {
-    try {
-        await runWebUsbFastbootCommand({command: 'erase', partition});
-    } catch(e) {
-        writeLog('WebUSB erase 失败，尝试忽略: ' + e.message, 'warn');
-    }
-}
-
-console.log('[WebUSB] Fastboot 协议实现已加载');
-
-</script>
-
-</body>
+</script></body>
 </html>
