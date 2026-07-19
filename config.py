@@ -8,7 +8,7 @@ import shutil
 import logging
 
 # ============ 版本信息 ============
-TOOL_VERSION = "3.9.1"
+TOOL_VERSION = "4.0.6"
 UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/sd/123456"
 UPDATE_ZIP_URL = f"{UPDATE_REMOTE_BASE}/flash_tool.zip"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/master/config.py"
@@ -141,10 +141,10 @@ logger = setup_logging()
 # ============ WebDAV / OpenList 上传配置 ============
 # 注意：此账号（123456/123456）仅用于用户上传刷机脚本到 OpenList。
 # 项目打包上传到 /TY/flash_tool/ 请使用超级账号（见记忆或环境变量 WEBDAV_ADMIN_USER/WEBDAV_ADMIN_PASS）。
-# 旧入口兼容：WEBDAV_URL 指向与 WEBDAV_BASE_URL 相同的地址
-WEBDAV_URL = WEBDAV_BASE_URL
-WEBDAV_USER = "123456"
-WEBDAV_PASS = "123456"
+# 旧入口兼容：WEBDAV_URL 指向坚果云 WebDAV
+WEBDAV_URL = os.environ.get('SKYTREE_WEBDAV_URL', 'https://dav.jianguoyun.com/dav/')
+WEBDAV_USER = os.environ.get('SKYTREE_WEBDAV_USER', '1248331222@qq.com')
+WEBDAV_PASS = os.environ.get('SKYTREE_WEBDAV_PASS', 'a9a69b5dz6ka58r4')
 UPLOAD_DIR = os.path.join(PUBLIC_DIR, "uploaded_scripts")
 
 # ============ 超时与轮询配置 ============
@@ -159,9 +159,43 @@ WAIT_FASTBOOT_INITIAL = 1
 TASK_LOG_LIMIT = 300
 BATTERY_LOW_THRESHOLD = 20
 
+# ============ 解析器目录（项目根目录下，便于随项目迁移） ============
+PARSERS_DIR = os.path.join(PROJECT_DIR, 'parsers')
+
 # ============ 初始化目录 ============
 def init_directories():
     """自动创建必要目录"""
+    # 解析器目录：项目根目录/parsers
+    os.makedirs(PARSERS_DIR, exist_ok=True)
+
+    # 迁移旧目录 ~/.skytree/parsers 中的解析器到新目录
+    old_parsers_dir = os.path.join(os.path.expanduser('~'), '.skytree', 'parsers')
+    if os.path.isdir(old_parsers_dir) and os.path.abspath(old_parsers_dir) != os.path.abspath(PARSERS_DIR):
+        import shutil as _shutil
+        migrated = 0
+        for fname in os.listdir(old_parsers_dir):
+            if fname.endswith('.js'):
+                old_fp = os.path.join(old_parsers_dir, fname)
+                new_fp = os.path.join(PARSERS_DIR, fname)
+                if not os.path.exists(new_fp):
+                    try:
+                        _shutil.copy2(old_fp, new_fp)
+                        migrated += 1
+                        logger.info(f"迁移解析器: {fname}")
+                    except Exception as e:
+                        logger.warning(f"迁移解析器失败 {fname}: {e}")
+        # 迁移 registry.json
+        old_reg = os.path.join(old_parsers_dir, 'registry.json')
+        new_reg = os.path.join(PARSERS_DIR, 'registry.json')
+        if os.path.exists(old_reg) and not os.path.exists(new_reg):
+            try:
+                _shutil.copy2(old_reg, new_reg)
+                logger.info("迁移解析器注册表: registry.json")
+            except Exception:
+                pass
+        if migrated > 0:
+            logger.info(f"共迁移 {migrated} 个解析器到 {PARSERS_DIR}")
+
     for d in [ROM_DIR, IMAGE_DIR, STATIC_DIR, PUBLIC_DIR, PUBLIC_IMAGE_DIR]:
         os.makedirs(d, exist_ok=True)
         logger.debug(f"目录已就绪: {d}")

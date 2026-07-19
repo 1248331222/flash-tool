@@ -45,7 +45,6 @@ from core.flasher import _load_flash_history
 from core import updater
 
 from routes.socketio import init_socketio, register_socketio_events
-from routes.api_rom import rom_bp
 from routes.api_public import public_bp
 from routes.api_images import images_bp
 from routes.api_flash import flash_bp
@@ -54,6 +53,11 @@ from routes.api_toolbox import toolbox_bp
 from routes.api_usb import usb_bp
 from routes.api_batch import batch_task_bp
 from routes.api_upload import upload_bp
+from routes.api_fs import fs_bp
+from routes.api_parsers import parsers_bp
+from routes.api_flash_execute import flash_exec_bp
+from routes.api_workbench import workbench_bp
+from routes.api_shell import shell_bp
 
 
 # ============ Flask 应用 ============
@@ -82,7 +86,6 @@ init_socketio(socketio)
 register_socketio_events(socketio)
 
 # 注册所有 Blueprint
-app.register_blueprint(rom_bp)
 app.register_blueprint(public_bp)
 app.register_blueprint(images_bp)
 app.register_blueprint(flash_bp)
@@ -91,6 +94,11 @@ app.register_blueprint(toolbox_bp)
 app.register_blueprint(usb_bp)
 app.register_blueprint(batch_task_bp)
 app.register_blueprint(upload_bp)
+app.register_blueprint(fs_bp)
+app.register_blueprint(parsers_bp)
+app.register_blueprint(flash_exec_bp)
+app.register_blueprint(workbench_bp)
+app.register_blueprint(shell_bp)
 
 
 # ============ 错误诊断 API ============

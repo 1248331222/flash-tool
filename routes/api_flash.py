@@ -126,6 +126,7 @@ def flash_partition_route():
     partition = data.get("partition")
     image = data.get("image")
     extra = data.get("extra", "")
+    extra_before = data.get("extra_before", "")
     source = data.get("source", "local")
     rom_name = data.get("rom_name", "")
     allow_dangerous = data.get("allow_dangerous", False)
@@ -139,6 +140,7 @@ def flash_partition_route():
         source=source,
         rom_name=rom_name,
         extra=extra,
+        extra_before=extra_before,
         allow_dangerous=allow_dangerous
     )
 

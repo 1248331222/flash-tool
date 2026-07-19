@@ -1,0 +1,88 @@
+{
+  "parsers": [
+    {
+      "filename": "bat_nested_for_if_percent_indirect.js",
+      "name": "bat_nested_for_if_percent_indirect",
+      "installed_at": "2026-07-18 04:59:09",
+      "size": 15813,
+      "source": "local"
+    },
+    {
+      "filename": "bat.js",
+      "name": "bat",
+      "installed_at": "2026-07-18 05:01:21",
+      "size": 15813,
+      "source": "local"
+    },
+    {
+      "filename": "bat_direct.js",
+      "name": "bat_direct",
+      "installed_at": "2026-07-18 05:01:27",
+      "size": 15813,
+      "source": "local"
+    },
+    {
+      "filename": "bat_percent_direct.js",
+      "name": "bat_percent_direct",
+      "installed_at": "2026-07-18 05:01:33",
+      "size": 15813,
+      "source": "local"
+    },
+    {
+      "filename": "bat_if_percent.js",
+      "name": "bat_if_percent",
+      "installed_at": "2026-07-18 05:42:32",
+      "size": 15523,
+      "source": "local"
+    },
+    {
+      "filename": "bat_if_goto_percent.js",
+      "name": "bat_if_goto_percent",
+      "installed_at": "2026-07-18 08:15:47",
+      "size": 7729,
+      "source": "local"
+    },
+    {
+      "filename": "bat_for_f_if_percent_direct.js",
+      "name": "bat_for_f_if_percent_direct",
+      "installed_at": "2026-07-18 08:19:55",
+      "size": 9037,
+      "source": "local"
+    },
+    {
+      "filename": "sh_if_dollar_sub_pipe_dirname.js",
+      "name": "sh_if_dollar_sub_pipe_dirname",
+      "installed_at": "2026-07-18 21:53:21",
+      "size": 5452,
+      "source": "local"
+    },
+    {
+      "filename": "sh_redirect.js",
+      "name": "sh_redirect",
+      "installed_at": "2026-07-18 21:56:16",
+      "size": 5452,
+      "source": "local"
+    },
+    {
+      "filename": "sh.js",
+      "name": "sh",
+      "installed_at": "2026-07-18 22:06:08",
+      "size": 5452,
+      "source": "local"
+    },
+    {
+      "filename": "sh_if_backtick_pipe_dirname.js",
+      "name": "sh_if_backtick_pipe_dirname",
+      "installed_at": "2026-07-18 22:07:42",
+      "size": 5452,
+      "source": "local"
+    },
+    {
+      "filename": "sh_if_defined_dollar_sub_pipe_dirname.js",
+      "name": "sh_if_defined_dollar_sub_pipe_dirname",
+      "installed_at": "2026-07-18 22:22:52",
+      "size": 6657,
+      "source": "local"
+    }
+  ]
+}

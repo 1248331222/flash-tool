@@ -107,6 +107,10 @@ h3 { font-size:15px; margin:0 0 10px 0; }
 
   _renderChangelog() {
     const logs = [
+      { ver: 'v3.9.6', date: '2026-07-10', items: ['禁用SH管线文件存在性检查（sh_001/sh_002/共享模板不再报告 missing_files）', 'validate_image_rel_path 全局修复带前导"/"的相对路径误判'] },
+      { ver: 'v3.9.5', date: '2026-07-10', items: ['修复：validate_image_rel_path 误判带前导"/"的相对路径', 'crclist.txt/abl.elf 等非 .img 文件路径校验通过'] },
+      { ver: 'v3.9.4', date: '2026-07-10', items: ['修复：start_batch_task 中 hydra_summary 为字符串时调 .get() 崩溃'] },
+      { ver: 'v3.9.3', date: '2026-07-10', items: ['移除镜像格式限制，支持任意格式刷写', 'validate_image_rel_path/validate_absolute_image_path 不再硬性限制 .img'] },
       { ver: 'v3.9.1', date: '2026-07-10', items: ['修复非AB机型set_active崩溃', '启动线刷任务异常捕获', '非AB自动跳过set_active', 'sh_001解析高通flash_all.sh优化'] },
       { ver: 'v3.9.0', date: '2026-07-09', items: ['亮剑架构引擎落地失败，重启天树引擎', '工具箱VB校验增加文件选择按钮', '线刷参数输入框UI优化'] },
       { ver: 'v3.8.5', date: '2026-07-06', items: ['前端架构重构：Web Component 隔离', '上传脚本优化', 'UI 细节调整'] },

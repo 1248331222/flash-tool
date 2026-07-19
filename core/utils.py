@@ -161,13 +161,106 @@ def validate_image_rel_path(path: str) -> str:
         not normalized
         or normalized.startswith("../")
         or normalized == ".."
-        or os.path.isabs(path)
+        or os.path.isabs(normalized)
         or "\x00" in path
     ):
         raise ValueError(f"非法镜像路径: {path}")
     if not normalized.lower().endswith(".img"):
-        raise ValueError("只支持 .img 镜像文件")
+        return normalized
     return normalized
+
+
+# 常见镜像子目录前缀（按优先级排序）
+_IMAGE_SUB_DIRS = ('images/', 'image/', 'firmware/', 'super/', '')
+
+
+def _recursive_find_image(base_dir: str, basename: str) -> str | None:
+    """在 base_dir 下递归查找名为 basename 的 .img 文件（限制深度避免过慢）。"""
+    if not os.path.isdir(base_dir):
+        return None
+    basename_lower = basename.lower()
+    for dirpath, dirnames, filenames in os.walk(base_dir):
+        # 剪枝：跳过隐藏目录和无关大目录
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")
+                       and d not in ("Android", "DCIM", "Pictures", "Movies", "Music")]
+        for fn in filenames:
+            if fn.lower() == basename_lower:
+                return os.path.join(dirpath, fn)
+    return None
+
+
+def resolve_image_abs_path(image_name: str, rom_dir: str, rom_name: str = None) -> tuple:
+    """
+    统一镜像路径解析器（解析阶段 + 执行阶段共用）。
+
+    按优先级依次尝试：
+      1. rom_dir（脚本所在目录）+ image_name
+      2. ROM_DIR/rom_folder + image_name
+      3. 上述各目录 + 常见子目录前缀（images/、image/、firmware/、super/）
+      4. 递归查找 rom_dir 和 ROM_DIR/rom_folder
+
+    Args:
+        image_name: 脚本中的镜像路径（相对/绝对/纯文件名）
+        rom_dir: 脚本所在目录（os.path.dirname(script_path)）
+        rom_name: ROM 包名（用于定位 ROM_DIR 下的解压目录）
+
+    Returns:
+        (abs_path, True)  找到时返回绝对路径
+        (None, False)     未找到
+    """
+    if not image_name:
+        return None, False
+
+    # 标准化路径分隔符
+    rel = image_name.strip().strip('"').replace("\\", "/").lstrip("/").lstrip("./")
+    if not rel or "\x00" in rel or ".." in rel:
+        return None, False
+
+    basename = os.path.basename(rel)
+    is_pure_name = "/" not in rel
+
+    # 构建候选基础目录列表
+    candidate_dirs = []
+    if rom_dir and os.path.isdir(rom_dir):
+        candidate_dirs.append(os.path.abspath(rom_dir))
+
+    if rom_name:
+        rom_folder = rom_name if os.path.isdir(os.path.join(ROM_DIR, rom_name)) else get_rom_base_name(rom_name)
+        rom_root = os.path.join(ROM_DIR, rom_folder)
+        if os.path.isdir(rom_root):
+            rom_root = os.path.abspath(rom_root)
+            if rom_root not in candidate_dirs:
+                candidate_dirs.append(rom_root)
+
+    # 阶段1：直接拼接 + 子目录前缀
+    for base in candidate_dirs:
+        # 直接拼接完整相对路径
+        try:
+            full = sanitize_path(base, rel)
+            if os.path.exists(full):
+                return full, True
+        except (ValueError, FileNotFoundError):
+            pass
+        # 纯文件名时尝试常见子目录前缀
+        if is_pure_name:
+            for sub in _IMAGE_SUB_DIRS:
+                if not sub:
+                    continue
+                try:
+                    full = sanitize_path(base, sub + rel)
+                    if os.path.exists(full):
+                        return full, True
+                except (ValueError, FileNotFoundError):
+                    continue
+
+    # 阶段2：递归查找（兜底）
+    if basename.lower().endswith(".img"):
+        for base in candidate_dirs:
+            found = _recursive_find_image(base, basename)
+            if found:
+                return os.path.abspath(found), True
+
+    return None, False
 
 
 def get_allowed_image_roots() -> list:
@@ -217,7 +310,7 @@ def validate_absolute_image_path(path: str) -> str:
     if not is_path_under_allowed_roots(full):
         raise ValueError("镜像路径不在允许目录内，请放到 123456、已解压线刷包或 /sdcard 下")
     if not full.lower().endswith(".img"):
-        raise ValueError("只支持 .img 镜像文件")
+        return full
     if not os.path.exists(full):
         raise ValueError("镜像文件不存在")
     return full
@@ -298,13 +391,43 @@ def get_image_path(source: str, image_name: str, rom_name: str = None) -> str:
     Raises:
         ValueError: 如果路径不合法或文件不存在
     """
+    # 【修复】：统一将 Windows 反斜杠转换为正斜杠，解决跨平台路径问题
+    if isinstance(image_name, str):
+        image_name = image_name.replace('\\', '/')
+    # 【修复】：只对 .img 文件进行完整校验，非 .img 文件（如 crclist.txt）跳过
+    is_img = image_name.lower().endswith('.img') if isinstance(image_name, str) else False
     if source == "rom":
         if not rom_name:
             raise ValueError("未指定刷机包")
-        image_name = validate_image_rel_path(image_name)
+        if is_img:
+            image_name = validate_image_rel_path(image_name)
         rom_folder = rom_name if os.path.isdir(os.path.join(ROM_DIR, rom_name)) else get_rom_base_name(rom_name)
         base_dir = os.path.join(ROM_DIR, rom_folder)
-        return sanitize_path(base_dir, image_name)
+        try:
+            return sanitize_path(base_dir, image_name)
+        except (ValueError, FileNotFoundError):
+            if is_img:
+                pass  # 往下走兜底逻辑
+            else:
+                raise
+        # 【修复】：如果原始路径找不到，对纯文件名尝试补齐常见子目录前缀
+        if is_img and '/' not in image_name and '\\' not in image_name:
+            for sub_dir in _IMAGE_SUB_DIRS:
+                if not sub_dir:
+                    continue
+                test_rel = sub_dir + image_name
+                try:
+                    path = sanitize_path(base_dir, test_rel)
+                    if os.path.exists(path):
+                        return path
+                except (ValueError, FileNotFoundError):
+                    continue
+        # 【修复】：最后兜底——在 ROM 根目录下递归查找同名 .img
+        if is_img:
+            found = _recursive_find_image(base_dir, os.path.basename(image_name))
+            if found:
+                return found
+        raise FileNotFoundError(f"镜像不存在：{image_name}")
 
     elif source == "public":
         validate_image_filename(image_name)

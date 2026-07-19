@@ -23,23 +23,20 @@ window.addEventListener('unhandledrejection', function(e) {
   e.preventDefault();
 });
 </script>
-<link rel="stylesheet" href="/static/css/main.css?v=4">
+<link rel="stylesheet" href="/static/css/main.css?v=21">
 <link rel="stylesheet" href="/static/css/views/device.css?v=4">
-<link rel="stylesheet" href="/static/css/views/batch.css?v=4">
-<link rel="stylesheet" href="/static/css/views/version.css?v=4">
+<link rel="stylesheet" href="/static/css/views/batch.css?v=8">
+<link rel="stylesheet" href="/static/css/views/version.css?v=5">
 <link rel="stylesheet" href="/static/css/views/tools.css?v=4">
-<link rel="stylesheet" href="/static/css/views/workbench.css?v=4">
+<link rel="stylesheet" href="/static/css/views/workbench.css?v=8">
 </head>
 <body>
 
 <!-- 主题切换按钮 -->
 <button class="theme-toggle" id="themeToggle" data-action="theme-toggle" title="切换主题">🌙 深色</button>
 
-<!-- 📤 上传脚本悬浮按钮 -->
-<button class="upload-fab" id="uploadFabBtn" data-action="open-upload-dialog" title="上传脚本样本">📤</button>
-
 <div id="envStatus" class="env-status" style="display:none"></div>
-<div class="global-status" id="globalStatus"><span class="pulse-dot"></span><span id="globalStatusText">未连接设备 · 请先检测设备</span></div>
+<div class="global-status" id="globalStatus"><span class="pulse-dot"></span><span id="globalStatusText">未连接设备 · 请先检测设备</span><button id="logPopupBtn" class="log-popup-btn" title="查看运行日志">日志</button></div>
 
 <!-- ===== 视图: 设备连接 ===== -->
 <div class="panel run-mode-panel app-view active" data-view="device">
@@ -86,19 +83,47 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 </div>
 </div>
-<div class="sub-section">
-<h3 style="font-size:13px">📜 运行日志</h3>
-<div class="log-box" id="logBox"></div>
-<div class="row" style="justify-content:space-between">
-<button class="btn secondary small" id="clearLogBtn">清空日志</button>
-<button class="btn secondary small" id="exportLogBtn">导出日志</button>
-</div>
-</div>
 <div id="backendUrlRow" class="row" style="margin-top:6px;gap:4px;align-items:center;padding:0 12px 12px">
 <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">后端地址</span>
 <input type="text" id="backendUrlInput" placeholder="留空=本机，例如 http://192.168.1.100:5000" style="flex:1;min-width:0;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color)">
   <button class="btn secondary small" id="applyBackendUrlBtn" style="white-space:nowrap;font-size:11px">应用</button>
   </div>
+
+<!-- 自定义命令/脚本执行区 -->
+<div class="custom-cmd-section" id="customCmdSection" style="margin:8px 12px 12px;">
+  <div class="custom-cmd-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <h4 style="margin:0;font-size:13px;font-weight:600;">自定义命令 / 脚本</h4>
+    <span id="customCmdModeHint" style="font-size:11px;color:var(--text-muted);"></span>
+  </div>
+  <div id="customCmdCwdBar" style="display:flex;align-items:center;gap:4px;margin-bottom:6px;font-size:11px;color:var(--text-muted);font-family:'Fira Code','Consolas',monospace;">
+    <span>📁</span><span id="customCmdCwd" style="color:var(--accent-blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title=""></span>
+  </div>
+  <div id="customCmdOutput" style="background:#000;color:var(--accent-green);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-family:'Fira Code','Consolas',monospace;font-size:12px;max-height:200px;overflow-y:auto;overscroll-behavior:contain;margin-bottom:6px;white-space:pre-wrap;word-break:break-all;min-height:48px;"><span style="color:var(--text-muted);">命令输出将显示在这里...</span></div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <input type="text" id="customCmdInput" list="customCmdList" placeholder="输入命令（如 ls -la、termux-usb -l、pkg list-installed）" style="flex:1;min-width:0;font-size:12px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--bg-card);color:var(--text-color);box-sizing:border-box;">
+    <datalist id="customCmdList">
+      <option value="ls -la">
+      <option value="pwd">
+      <option value="df -h">
+      <option value="free -h">
+      <option value="uname -a">
+      <option value="whoami">
+      <option value="termux-usb -l">
+      <option value="termux-battery-status">
+      <option value="termux-storage-get /sdcard/">
+      <option value="pkg list-installed">
+      <option value="pkg update && pkg upgrade">
+      <option value="am start -a android.intent.action.VIEW">
+      <option value="fastboot devices">
+      <option value="fastboot getvar all">
+      <option value="fastboot reboot bootloader">
+      <option value="adb devices">
+      <option value="adb shell getprop ro.product.model">
+      <option value="adb reboot recovery">
+    </datalist>
+    <button class="btn small" id="customCmdRunBtn" style="flex-shrink:0;white-space:nowrap;">执行</button>
+  </div>
+</div>
 </div>
 
 <!-- 进度条 -->
@@ -110,149 +135,285 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <!-- 1. 线刷模块 -->
 <div class="panel app-view batch-page" data-view="batch">
-<h3 class="section-title">线刷 <span class="help-toggle" data-action="toggle-help" data-target="help-rom">使用说明 ▾</span></h3>
-<div id="help-rom" class="help-content">
-<ol>
-<li>线刷包放入手机 123456 文件夹</li>
-<li>刷新列表→选择→复制解压</li>
-<li>解析 BAT/CMD/SH 脚本即可执行线刷</li>
-<li>支持断点续跑，中途断开可继续</li>
-<li>WebSocket 实时推送进度，无需轮询</li>
-</ol>
-</div>
-<div class="batch-inline-row backend-mode-only">
-<button class="btn secondary small" id="refreshRomBtn">刷新</button>
-<select id="romSelect" style="min-width:180px"><option value="">选择线刷包</option></select>
-<button class="btn small" id="extractBtn" data-action="extract-rom" disabled>解压</button>
-</div>
-<div class="batch-pack-card backend-mode-only">
-<div class="batch-pack-head"><span>刷机包 / 脚本</span><span class="help-toggle" data-action="toggle-help" data-target="help-bat">说明 ▾</span></div>
-<div class="rom-section-desc">选择线刷包 → 解压 → 选用项目 → 解析脚本 → 执行线刷</div>
-<div class="batch-select-row">
-<button class="btn secondary small" data-action="refresh-extracted-roms">刷新项目</button>
-<select id="romProjectSelect"><option value="">选择已解压线刷项目</option></select>
-</div>
-<div class="batch-select-row">
-<button class="btn secondary small" id="refreshBatBtn">刷新脚本</button>
-<select id="batSelect"><option value="">选择刷机脚本</option></select>
-<button class="btn small" id="importBatBtn" disabled>解析脚本</button>
-</div>
-<div class="batch-select-row" style="margin-top:2px;display:block">
-<input type="text" id="batExtraArgs" placeholder="带参数解析默认无，如需请填写" style="width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--bg-card);color:var(--text-color);box-sizing:border-box" title="BAT脚本%*占位符的展开值">
-</div>
-<div style="margin-top:6px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
-  解析失败？<a href="#" data-action="quick-upload-script" class="accent-link">📤 上传此脚本样本</a> 帮助改进天树引擎
-</div>
-<div class="rom-list-header" id="romListHeader" style="display:none">
-<span class="rom-list-title">已解压线刷包</span>
-<span class="rom-list-count" id="romListCount"></span>
-<button class="btn secondary small" id="clearAllRomsBtn" data-action="clear-all-roms" style="font-size:11px;padding:2px 8px">清空全部</button>
-</div>
-<div id="extractedRomList" class="file-list compact-rom-list"><div style="padding:8px 10px;color:var(--text-muted);font-size:12px">暂无已解压刷机包</div></div>
-<div id="help-bat" class="help-content backend-mode-only">
-<ol>
-<li>先选择已解压线刷项目，再读取该项目脚本</li>
-<li>解析脚本后自动生成刷机步骤，执行前校验文件</li>
-<li>可预览将要执行的命令（模拟运行）</li>
-</ol>
-</div>
-<div class="sub-section webusb-mode-only">
-<h3 style="font-size:13px">WebUSB模式：线刷已禁用</h3>
-<p class="tip">WebUSB 线刷大镜像时会把镜像读入浏览器内存，容易导致主设备爆内存卡死。为保证安全，WebUSB 模式仅保留命令、工具和单分区刷写；完整线刷请切换到后端模式。</p>
-</div>
-<div class="task-summary batch-summary-compact" id="batchSummary">
-<h4>线刷任务</h4>
-<p id="batchSummaryText">还没有解析刷机脚本。</p>
-<div class="class-info-row" id="classInfoRow"></div>
-<div class="metric-row" id="batchMetrics"></div>
-<div class="smart-actions"><button class="btn secondary small" id="toggleStepsBtn" disabled>查看步骤 ▾</button></div>
-</div>
-</div>
-<!-- 脚本处理区域（复杂BAT / 原生SH） -->
-<div id="scriptProcessArea" style="display:none;">
-    <!-- 动态横幅 -->
-    <div id="complexScriptBanner" style="display:none; background:rgba(255,159,10,0.12); border:1px solid rgba(255,159,10,0.3); border-radius:10px; padding:10px 14px; margin:8px 0; font-size:13px; color:var(--accent-orange);">
-        <strong id="scriptBannerTitle">&#x26A0;&#xFE0F; 检测到复杂 BAT 脚本</strong><br>
-        <span id="scriptBannerDesc" style="color:var(--text-secondary); font-size:12px;">该脚本包含循环、条件分支或其他复杂语法，无法自动解析为步骤列表。请查看下方原脚本源码，将其手动转换为 Shell (.sh) 格式后输入。</span>
-    </div>
-    <!-- 原BAT源码查看（仅复杂BAT模式） -->
-    <details id="batSourceDetails" style="display:none; margin:8px 0; background:var(--card-bg); border-radius:10px; border:1px solid var(--rule);">
-        <summary style="font-size:12px; color:var(--accent-blue); cursor:pointer; padding:10px 14px; display:flex; align-items:center; justify-content:space-between;">
-            <span>查看原 BAT 脚本源码</span>
-            <button class="btn secondary small btn-copy-source" data-action="copy-bat-source">复制源码</button>
-        </summary>
-        <pre id="batSourceContent" style="background:#000; color:var(--accent-green); padding:12px; border-radius:8px; font-size:11px; overflow-x:auto; max-height:300px; white-space:pre-wrap; word-break:break-all; margin:0 12px 12px;"></pre>
-    </details>
-    <!-- 原生.sh预览（仅原生SH模式） -->
-    <div id="shNativePreviewArea" style="display:none; margin:8px 0;">
-        <div style="font-size:12px; color:var(--text-muted); margin:6px 0;">脚本内容预览（脚本将在 ROM 包解压目录下执行，相对路径如 image/boot.img 可直接使用）：</div>
-        <div style="font-size:11px; background:rgba(48,209,88,0.08); border:1px solid rgba(48,209,88,0.25); border-radius:8px; padding:8px 10px; margin:6px 0; color:var(--accent-green); line-height:1.6;">
-            <strong>环境兼容：</strong>执行时工具会自动处理 fastboot 路径兼容（函数覆盖 + 路径替换 + 软链接），无论脚本中写 <code>fastboot</code>、<code>"$FASTBOOT"</code>、<code>"$TOOL_PATH"</code> 还是其他变量名，最终都会使用项目内置的 fastboot 二进制。用户原始脚本不会被修改。
-        </div>
-        <pre id="shNativePreview" style="width:100%; min-height:200px; max-height:400px; background:#000; color:var(--accent-green); border:1px solid var(--rule); border-radius:10px; padding:12px; font-family:'Fira Code','Consolas',monospace; font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all;"></pre>
-        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-            <button class="btn" id="useNativeShBtn" data-action="use-native-sh">使用此脚本</button>
-        <button class="btn secondary small" data-action="cancel-custom-script">取消</button>
-        </div>
-        <div id="nativeShStatus" style="font-size:12px; margin-top:6px; color:var(--text-muted);"></div>
-    </div>
-    <!-- 手动输入转换.sh区域（仅复杂BAT模式） -->
-    <div id="customScriptArea" style="display:none; margin:8px 0;">
-        <div style="font-size:12px; color:var(--text-muted); margin:6px 0;">请在下框中输入转换后的 .sh 脚本（脚本将在 ROM 包解压目录下执行，相对路径如 image/boot.img 可直接使用）：</div>
-        <div style="font-size:11px; background:rgba(255,159,10,0.08); border:1px solid rgba(255,159,10,0.25); border-radius:8px; padding:8px 10px; margin:6px 0; color:var(--accent-orange); line-height:1.6;">
-            <strong>环境兼容：</strong>执行时工具会自动处理 fastboot 路径兼容（函数覆盖 + 路径替换 + 软链接），无论你写 <code>fastboot</code>、<code>$FASTBOOT</code>、<code>$TOOL_PATH</code> 还是硬编码路径，最终都会使用项目内置的 fastboot 二进制。<br>
-            建议使用 <code>fastboot</code> 或 <code>"$FASTBOOT"</code>，更简洁易读。路径无需写死，工具会自动处理。
-        </div>
-        <textarea id="customScriptInput" placeholder="请将复杂 BAT 脚本手动转换为 .sh 格式后粘贴到此处...&#10;&#10;示例：&#10;#!/bin/bash&#10;# 直接写 fastboot 即可，工具会自动使用正确版本&#10;fastboot flash boot image/boot.img&#10;fastboot flash dtbo image/dtbo.img&#10;fastboot reboot" style="width:100%; min-height:280px; max-height:500px; background:#000; color:var(--accent-green); border:1px solid var(--rule); border-radius:10px; padding:12px; font-family:'Fira Code','Consolas',monospace; font-size:12px; resize:vertical; outline:none; white-space:pre-wrap; word-break:break-all;"></textarea>
-        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-            <button class="btn" id="useCustomScriptBtn" data-action="use-custom-script">使用此自定义脚本</button>
-        <button class="btn secondary small" id="cancelCustomScriptBtn" data-action="cancel-custom-script">取消</button>
-        </div>
-        <div id="customScriptStatus" style="font-size:12px; margin-top:6px; color:var(--text-muted);"></div>
-    </div>
-</div>
-<div class="step-list collapsed" id="stepList"><div style="padding:20px;text-align:center;color:var(--text-muted)">解析脚本生成步骤</div></div>
-<!-- 风险摘要（简单脚本模式使用） -->
-<div id="riskSummaryCard" style="display:none; background:var(--card-bg); border-radius:12px; padding:12px; margin:8px 0; box-shadow:var(--card-shadow);"></div>
-<div class="task-summary" id="resumeSummary" style="display:none">
-<h4>发现未完成线刷任务</h4>
-<p id="resumeText">检测到上次线刷中断。</p>
-<div class="smart-actions">
-<button class="btn small" id="resumeFlashBtn">从断点继续</button>
-<button class="btn secondary small" id="restartFlashBtn">重新开始</button>
-<button class="btn secondary small" id="clearResumeBtn">清除断点</button>
-</div>
-</div>
-<div class="batch-exec-bar">
-<div class="module-status" id="batchStatus">线刷状态：等待解析脚本并检测设备。</div>
-<div class="batch-exec-buttons">
-<button class="btn warn" id="batchFlashBtn" disabled>执行线刷</button>
-<button class="btn secondary small" id="simulateBtn" disabled style="display:none">模拟刷入</button>
-<button class="btn secondary small" id="clearBatchStepsBtn" disabled>清空线刷步骤</button>
-<button class="btn secondary small" id="exportBatchLogBtn" style="display:none">导出日志</button>
-</div>
-<span class="tip" id="batchTip"></span>
-</div>
-<div class="module-progress" id="batchProgress"><div class="module-progress-bar"></div><span class="module-progress-text">0%</span></div>
-<div class="report-card" id="flashReportCard"></div>
-<!-- v3.0.5: 线刷独立输出区域 -->
-<div id="batchOutputArea" style="display:none; max-height:300px; overflow-y:auto; background:#000; color:var(--accent-green); border:1px solid var(--rule); border-radius:10px; padding:10px; font-family:'Fira Code','Consolas',monospace; font-size:12px; margin-top:8px;"></div>
 
-<!-- 刷机历史 -->
-<div class="sub-section" style="margin-top:12px">
-<h3 style="font-size:13px">📋 刷机历史</h3>
-<button class="btn secondary small" id="loadHistoryBtn">加载历史记录</button>
-<div id="flashHistoryList" style="margin-top:8px;max-height:300px;overflow-y:auto;"></div>
+<!-- WebUSB 模式线刷禁用提示 -->
+<div id="batchWebusbWarn" class="webusb-batch-warn" style="display:none;">
+  <div class="webusb-warn-card">
+    <div class="webusb-warn-icon">💥</div>
+    <h3>WebUSB 模式暂不支持线刷</h3>
+    <p class="webusb-warn-desc">当前 WebUSB 模式无法刷写大文件，会导致浏览器内存爆炸💥</p>
+    <p class="webusb-warn-desc">如有支持大文件刷写的 <code>webusb_fastboot.mjs</code>，请联系作者更新</p>
+    <div class="webusb-warn-contact">微信：KS30618</div>
+    <div class="webusb-warn-actions">
+      <button class="btn" data-action="switch-to-workbench">使用工作台</button>
+      <button class="btn secondary small" data-action="switch-to-backend">切换后端模式</button>
+    </div>
+  </div>
 </div>
+
+<div id="batchContentWrap">
+<div style="display:flex;gap:6px;margin-bottom:8px;">
+  <button class="btn secondary small" id="uploadScriptBtn" data-action="quick-upload-script" style="flex:1;">📤 上传用户脚本</button>
+  <button class="btn secondary small" id="parserMgrBtn" style="flex:1;">🔧 解析器管理</button>
+</div>
+
+<!-- 第一行：脚本选择 + 解析按钮 -->
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+  <button class="btn secondary" id="selectScriptBtn" style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">📁 点我选择刷机脚本</button>
+  <button class="btn" id="parseScriptBtn" disabled style="flex-shrink:0;">解析</button>
+</div>
+
+<!-- 带参数输入框（仅检测到 %* 时显示） -->
+<div id="scriptParamsRow" style="display:none;margin-bottom:8px;">
+  <input type="text" id="scriptParamsInput" placeholder="带参数解析脚本，默认为空，按需填写（对应脚本中 %1 %2 %* 占位符）" style="width:100%;font-size:11px;padding:5px 8px;border:1px solid var(--input-border,#38383a);border-radius:8px;background:var(--input-bg,#1c1c1e);color:var(--text-primary,#fff);box-sizing:border-box;">
+</div>
+
+<!-- 步骤列表 -->
+<div class="step-list" id="newStepList"><div style="padding:20px;text-align:center;color:var(--text-muted)">选择刷机脚本 → 解析 → 确认步骤 → 执行线刷</div></div>
+
+<!-- 执行栏包装（状态条+按钮栏，始终固定底部） -->
+<div class="batch-exec-wrapper" id="newBatchExecWrapper">
+  <!-- 状态条：椭圆形细长条 -->
+  <div class="batch-status-bar" id="newBatchStatusBar">
+    <div class="module-progress" id="newBatchProgress" style="display:none;flex:1;"><div class="module-progress-bar"></div><span class="module-progress-text">0%</span></div>
+    <span class="batch-status-text" id="newBatchStatus">线刷状态：就绪</span>
+  </div>
+  <!-- 按钮栏：高度减半 -->
+  <div class="batch-exec-bar" id="newBatchExecBar">
+    <button class="btn warn" id="newExecuteBtn">执行线刷</button>
+    <button class="btn secondary small" id="newClearStepsBtn">清空</button>
+  </div>
+</div>
+
+<!-- 输出日志 -->
+<div id="newBatchOutput" style="display:none;max-height:260px;overflow-y:auto;overscroll-behavior:contain;background:#000;color:var(--accent-green);border:1px solid var(--rule);border-radius:10px;padding:10px;font-family:'Fira Code','Consolas',monospace;font-size:12px;margin-bottom:8px;"></div>
+
+</div><!-- /batchContentWrap -->
+
 </div>
 
 <!-- ===== /视图: 线刷 ===== -->
+
+<!-- 重启警告弹窗 -->
+<div class="reboot-warn-modal" id="rebootWarnModal">
+  <div class="reboot-warn-box">
+    <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+    <h3 style="font-size:15px;margin-bottom:10px;">检测到重启到 Bootloader/Fastboot</h3>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">
+      重启后设备会断开连接，需要重新给 Termux:API 授权 OTG 权限。<br>
+      系统已自动在重启步骤后插入"等待重连"步骤，会自动检测设备重连。
+    </p>
+    <button class="btn primary" id="rebootWarnOkBtn" style="width:100%;">我知道了</button>
+  </div>
+</div>
+
+<!-- 等待重连弹窗 -->
+<div class="reconnect-modal" id="reconnectModal">
+  <div class="reconnect-box">
+    <div style="font-size:32px;margin-bottom:12px;">🔄</div>
+    <h3 style="font-size:15px;margin-bottom:10px;">正在等待设备重连</h3>
+    <p id="reconnectStatus" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">正在等待设备重连...</p>
+    <p id="reconnectAttempt" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></p>
+    <p id="reconnectHint" style="font-size:12px;color:var(--accent-orange,#ff9800);margin-bottom:16px;line-height:1.5;">
+      💡 请在手机上授权 OTG 权限（弹窗点击"允许"）<br>
+      如果无弹窗，尝试拔插 USB 或重启 Termux:API
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn primary" id="reconnectRetryBtn" style="flex:1;min-width:100px;">立即检测</button>
+      <button class="btn secondary" id="reconnectDetectBtn" style="flex:1;min-width:100px;" onclick="document.getElementById('checkDeviceBtn')&&document.getElementById('checkDeviceBtn').click()">前往检测</button>
+      <button class="btn secondary" id="reconnectSkipBtn" style="flex:1;min-width:80px;color:var(--text-muted);">跳过</button>
+    </div>
+  </div>
+</div>
+
+<!-- 暂停确认弹窗 -->
+<div class="pause-confirm-modal" id="pauseConfirmModal">
+  <div class="pause-confirm-box">
+    <div style="font-size:32px;margin-bottom:12px;">⏸️</div>
+    <h3 style="font-size:15px;margin-bottom:10px;">确认暂停刷写？</h3>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+      暂停后当前步骤执行完成后停止，可随时点击"继续刷写"恢复。
+    </p>
+    <div style="display:flex;gap:8px;">
+      <button class="btn secondary" id="pauseCancelBtn" style="flex:1;">取消</button>
+      <button class="btn warn" id="pauseConfirmBtn" style="flex:1;">确认暂停</button>
+    </div>
+  </div>
+</div>
+<!-- 解析器管理弹窗 -->
+<div class="modal-overlay" id="parserMgrModal" style="display:none;">
+  <div class="modal-box" style="max-width:500px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
+      <h3 style="margin:0;flex:1;">🔧 解析器管理</h3>
+      <span style="font-size:12px;color:var(--text-muted);margin-right:2px;">开发指南</span>
+      <button class="btn secondary small" id="pmGuideReadBtn" style="font-size:11px;padding:3px 10px;">📖 阅读</button>
+      <button class="btn secondary small" id="pmGuideExportBtn" style="font-size:11px;padding:3px 10px;">📤 导出</button>
+      <button class="modal-close-btn" id="pmCloseXBtn" title="关闭">✕</button>
+    </div>
+    
+    <!-- 安装方式 Tab -->
+    <div style="display:flex;gap:4px;margin-bottom:12px;">
+      <button class="btn secondary small pm-tab active" data-pm-tab="list">已安装</button>
+      <button class="btn secondary small pm-tab" data-pm-tab="local">本地安装</button>
+      <button class="btn secondary small pm-tab" data-pm-tab="url">直链安装</button>
+      <button class="btn secondary small pm-tab" data-pm-tab="webdav">WebDAV 安装</button>
+    </div>
+    
+    <!-- 已安装列表 -->
+    <div class="pm-panel" id="pmPanelList">
+      <div id="pmInstalledList" style="font-size:12px;color:var(--text-muted);">加载中...</div>
+    </div>
+    
+    <!-- 本地安装 -->
+    <div class="pm-panel" id="pmPanelLocal" style="display:none;">
+      <p class="tip">选择本地 .js 解析器文件安装。</p>
+      <input type="file" id="pmLocalFile" accept=".js" style="display:none;">
+      <button class="btn small" id="pmLocalPickBtn">选择 .js 文件</button>
+      <span id="pmLocalFileName" style="margin-left:8px;font-size:12px;color:var(--text-muted);"></span>
+      <button class="btn small" id="pmLocalInstallBtn" disabled style="margin-left:8px;">安装</button>
+      <div id="pmLocalStatus" style="margin-top:6px;font-size:12px;"></div>
+    </div>
+    
+    <!-- 直链安装 -->
+    <div class="pm-panel" id="pmPanelUrl" style="display:none;">
+      <p class="tip">输入解析器 .js 文件的下载链接。</p>
+      <input type="text" id="pmUrlInput" placeholder="https://example.com/parsers/bat_for_if.js" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--input-border,#38383a);border-radius:8px;background:var(--input-bg,#1c1c1e);color:var(--text-primary,#fff);box-sizing:border-box;margin-bottom:8px;">
+      <button class="btn small" id="pmUrlInstallBtn">下载并安装</button>
+      <div id="pmUrlStatus" style="margin-top:6px;font-size:12px;"></div>
+    </div>
+    
+    <!-- WebDAV 安装 -->
+    <div class="pm-panel" id="pmPanelWebdav" style="display:none;">
+      <p class="tip">从 WebDAV 服务器选择解析器安装。</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn secondary small" id="pmWdConfigBtn">⚙ WebDAV 配置</button>
+        <span id="pmWdConfigStatus" style="font-size:11px;color:var(--text-muted);">未配置</span>
+      </div>
+      <button class="btn secondary small" id="pmWdRefreshBtn">刷新列表</button>
+      <div id="pmWdFileList" style="margin-top:8px;font-size:12px;max-height:200px;overflow-y:auto;"></div>
+      <div id="pmWdStatus" style="margin-top:6px;font-size:12px;"></div>
+    </div>
+    
+    <!-- 覆盖安装确认 -->
+    <div id="pmOverwriteConfirm" style="display:none;background:rgba(255,159,10,0.12);border:1px solid rgba(255,159,10,0.3);border-radius:8px;padding:10px;margin-top:8px;">
+      <p id="pmOverwriteMsg" style="font-size:12px;margin:0 0 8px 0;"></p>
+      <div style="display:flex;gap:6px;">
+        <button class="btn small" id="pmOverwriteYes" style="background:var(--accent-orange);">覆盖安装</button>
+        <button class="btn secondary small" id="pmOverwriteNo">取消</button>
+      </div>
+    </div>
+    
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn secondary small" id="pmCloseBtn">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- WebDAV 配置弹窗 -->
+<div class="modal-overlay" id="wdConfigModal" style="display:none;">
+  <div class="modal-box" style="max-width:380px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:15px;">WebDAV 配置</h3>
+      <button class="modal-close-btn" id="wdConfigCloseBtn" title="关闭">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">WebDAV 地址</label>
+        <input type="text" id="wdCfgUrl" placeholder="https://dav.jianguoyun.com/dav/" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--input-border,#38383a);border-radius:6px;background:var(--input-bg,#1c1c1e);color:var(--text-primary,#fff);box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">用户名</label>
+        <input type="text" id="wdCfgUser" placeholder="用户名" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--input-border,#38383a);border-radius:6px;background:var(--input-bg,#1c1c1e);color:var(--text-primary,#fff);box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">密码</label>
+        <input type="password" id="wdCfgPass" placeholder="密码" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--input-border,#38383a);border-radius:6px;background:var(--input-bg,#1c1c1e);color:var(--text-primary,#fff);box-sizing:border-box;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn secondary small" id="wdCfgCancelBtn">取消</button>
+      <button class="btn small" id="wdCfgConfirmBtn" style="background:var(--accent-blue);color:#fff;">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 解析器开发指南弹窗 -->
+<div class="modal-overlay" id="pmGuideModal" style="display:none;">
+  <div class="modal-box" style="max-width:720px;max-height:88vh;height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;margin-bottom:12px;flex:0 0 auto;">
+      <h3 style="margin:0;flex:1;">📖 解析器开发指南</h3>
+      <button class="btn secondary small" id="pmGuideCopyBtn" style="font-size:11px;padding:3px 10px;margin-right:6px;">📋 全部复制</button>
+      <button class="btn secondary small" id="pmGuideDownloadBtn" style="font-size:11px;padding:3px 10px;margin-right:6px;">💾 下载</button>
+      <button class="modal-close-btn" id="pmGuideCloseBtn" title="关闭">✕</button>
+    </div>
+    <div id="pmGuideContent" style="flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:auto;touch-action:pan-y;font-size:13px;line-height:1.7;padding:4px 8px;"></div>
+  </div>
+</div>
+
+<!-- 全局日志弹窗 -->
+<div class="modal-overlay" id="logModal" style="display:none;">
+  <div class="modal-box log-modal-box">
+    <div class="log-modal-header">
+      <h3 class="log-modal-title">运行日志</h3>
+      <button class="modal-close-btn" id="logModalCloseBtn" title="关闭">✕</button>
+    </div>
+    <div class="log-box log-modal-content" id="logBox"></div>
+    <div class="log-modal-footer">
+      <button class="btn secondary small" id="copyLogBtn">复制日志</button>
+      <button class="btn secondary small" id="clearLogBtn">清空</button>
+      <button class="btn secondary small" id="exportLogBtn">导出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 需要解析器弹窗 -->
+<div class="modal-overlay" id="needParserModal" style="display:none;">
+  <div class="modal-box" style="max-width:380px;">
+    <div style="display:flex;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;flex:1;">需要安装解析器</h3>
+      <button class="modal-close-btn" id="needParserCloseBtn" title="关闭">✕</button>
+    </div>
+    <div style="font-size:13px;line-height:1.6;color:var(--text-secondary);margin-bottom:12px;">
+      <div id="needParserFeature" style="margin-bottom:8px;"></div>
+      <div style="display:flex;align-items:center;gap:6px;background:var(--bg-tertiary);padding:8px 10px;border-radius:8px;">
+        <span style="font-size:12px;color:var(--text-muted);">解析器文件名:</span>
+        <code id="needParserName" style="font-size:13px;color:var(--accent-green);flex:1;word-break:break-all;"></code>
+        <button class="btn secondary small" id="needParserCopyBtn" style="padding:3px 8px;font-size:11px;min-height:auto;flex-shrink:0;">复制</button>
+      </div>
+    </div>
+    <div class="modal-actions" style="gap:8px;">
+      <button class="btn secondary small" id="needParserCancelBtn">关闭</button>
+      <button class="btn small" id="needParserInstallBtn">去安装</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文件管理器弹窗 -->
+<div class="modal-overlay" id="filePickerModal" style="display:none;">
+  <div class="modal-box fp-modal-box">
+    <div class="fp-header">
+      <h3 class="fp-title" id="fpTitle">选择文件</h3>
+      <button class="modal-close-btn" id="fpCloseBtn" title="关闭">✕</button>
+    </div>
+    <div class="fp-toolbar">
+      <button class="btn secondary small" id="fpBackBtn" title="返回上级">↑ 返回</button>
+      <span class="fp-path" id="fpCurrentPath">/</span>
+      <button class="btn secondary small" id="fpRefreshBtn" title="刷新">⟳</button>
+    </div>
+    <div class="fp-list" id="fpFileList"></div>
+    <div class="fp-footer">
+      <button class="btn secondary small" id="fpCancelBtn">取消</button>
+      <button class="btn small" id="fpSelectDirBtn" style="display:none;">选择此目录</button>
+    </div>
+  </div>
+</div>
 
 <!-- 5. 版本页 -->
 <!-- ===== 视图: 版本 ===== -->
 <div class="panel app-view" data-view="version">
 <div class="version-head">
 <h3>📋 版本信息</h3>
+<button class="btn btn-success small sponsor-btn" id="sponsorBtn" data-action="show-sponsor">🥤 赞助作者</button>
 </div>
 <div class="version-card">
 <div class="version-row">
@@ -273,192 +434,148 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <!-- ===== /视图: 版本 ===== -->
 
-<!-- 工作台 v3.2.0 -->
+<!-- 工作台 v4.0.0（重构版） -->
 <!-- ===== 视图: 工作台 ===== -->
-<div class="panel app-view" data-view="workbench">
-<h3 class="section-title">🛠 自定义工作台 <span class="help-toggle" data-action="toggle-help" data-target="help-wb">说明 ▾</span></h3>
-<div id="help-wb" class="help-content">
-<ol>
-<li>支持添加 Fastboot/ADB/自定义 Shell 命令，可排序、单步执行、全部执行</li>
-<li>点击「导出脚本」生成 .sh 脚本，支持复制/下载/展开查看</li>
-<li>快捷操作按钮根据当前连接模式（ADB/Fastboot）自动选择工具</li>
-<li>高危操作执行前需二次确认</li>
-</ol>
+<div class="panel app-view batch-page" data-view="workbench">
+
+<!-- ===== 顶部配置栏 ===== -->
+<div class="wb-config-bar">
+<!-- 第一行：配置输入框 -->
+<div class="wb-config-row">
+<select id="wbConfigSelect" class="wb-config-input wb-config-select"></select>
+<input type="text" id="wbConfigInput" class="wb-config-input" placeholder="请输入新配置名称" style="display:none;">
+</div>
+<!-- 第二行：4个按钮 -->
+<div class="wb-config-row wb-config-buttons">
+<button class="btn small" id="wbEditBtn" data-action="wb-toggle-edit">修改</button>
+<button class="btn small secondary" id="wbImportBtn" data-action="wb-import-config">导入</button>
+<button class="btn small secondary" id="wbExportBtn" data-action="wb-export-config">导出</button>
+<button class="btn small danger" id="wbDeleteBtn" data-action="wb-delete-config">删除</button>
+</div>
 </div>
 
-<!-- 快捷操作栏 -->
-<div class="sub-section">
-<div style="display:flex;gap:6px;margin-bottom:4px">
-<button class="wb-qa-tab" id="wbQATabFb" data-action="wb-toggle-qa" data-type="fb">📡 添加 Fastboot 快捷命令</button>
-<button class="wb-qa-tab" id="wbQATabAdb" data-action="wb-toggle-qa" data-type="adb">📱 添加 ADB 快捷命令</button>
+<!-- ===== 步骤列表 ===== -->
+<div class="step-list" id="wbStepList"><div style="padding:20px;text-align:center;color:var(--text-muted)">请先选择或创建配置，然后添加步骤</div></div>
+
+<!-- ===== 添加步骤按钮区 ===== -->
+<div class="wb-add-row">
+<button class="btn small" id="wbAddFastbootBtn" data-action="wb-show-fastboot-dialog">📡 添加 Fastboot 命令</button>
+<button class="btn small btn-primary" id="wbAddStepBtn" data-action="wb-show-add-step-dialog">➕ 添加步骤</button>
 </div>
-<div id="wbQAFb" class="wb-qa-section" style="display:none">
+
+<!-- ===== 执行栏 ===== -->
+<div class="batch-exec-wrapper" id="wbExecWrapper">
+<div class="batch-status-bar" id="wbStatusBar">
+<div class="module-progress" id="wbProgress" style="display:none;flex:1;"><div class="module-progress-bar"></div><span class="module-progress-text">0%</span></div>
+<span class="batch-status-text" id="wbStatusText">工作台状态：就绪</span>
+</div>
+<div class="batch-exec-bar" id="wbExecBar">
+<button class="btn warn" id="wbExecuteBtn" data-action="wb-execute-all">全部执行</button>
+<button class="btn secondary small" id="wbSimulateBtn" data-action="wb-simulate">模拟执行</button>
+<button class="btn secondary small" id="wbClearBtn" data-action="wb-clear-steps">清空</button>
+</div>
+</div>
+
+<!-- 输出日志 -->
+<div id="wbOutput" style="display:none;max-height:260px;overflow-y:auto;overscroll-behavior:contain;background:#000;color:var(--accent-green);border:1px solid var(--rule);border-radius:10px;padding:10px;font-family:'Fira Code','Consolas',monospace;font-size:12px;margin-bottom:8px;"></div>
+
+</div>
+<!-- ===== /视图: 工作台 ===== -->
+
+<!-- ===== 添加步骤弹窗 ===== -->
+<div class="modal-overlay" id="wbAddStepDialog" style="display:none;">
+<div class="modal-box wb-dialog-box">
+<div class="wb-dialog-header">
+<h3 class="wb-dialog-title" id="wbAddStepDialogTitle">添加步骤</h3>
+<button class="modal-close-btn" data-action="wb-close-add-step-dialog">✕</button>
+</div>
+<div class="wb-dialog-body" id="wbAddStepDialogBody">
+<!-- 卡片选择页 -->
+<div class="wb-step-cards" id="wbStepCards">
+<div class="wb-step-card" data-step-type="flash">
+<div class="wb-step-card-icon">💾</div>
+<div class="wb-step-card-title">刷写镜像</div>
+<div class="wb-step-card-desc">刷写指定镜像到指定分区</div>
+</div>
+<div class="wb-step-card" data-step-type="flash-args-front">
+<div class="wb-step-card-icon">📋</div>
+<div class="wb-step-card-title">刷写镜像（参数在前）</div>
+<div class="wb-step-card-desc">--参数 flash 分区 镜像</div>
+</div>
+<div class="wb-step-card" data-step-type="flash-args-back">
+<div class="wb-step-card-icon">📑</div>
+<div class="wb-step-card-title">刷写镜像（参数在后）</div>
+<div class="wb-step-card-desc">flash 分区 镜像 --参数</div>
+</div>
+<div class="wb-step-card" data-step-type="flash-dir">
+<div class="wb-step-card-icon">📂</div>
+<div class="wb-step-card-title">遍历目录镜像</div>
+<div class="wb-step-card-desc">批量刷写目录内镜像到同名分区</div>
+</div>
+<div class="wb-step-card" data-step-type="cow">
+<div class="wb-step-card-icon">🧹</div>
+<div class="wb-step-card-title">COW 分区清理</div>
+<div class="wb-step-card-desc">delete-logical-partition 分区-cow</div>
+</div>
+<div class="wb-step-card" data-step-type="custom">
+<div class="wb-step-card-icon">⚙️</div>
+<div class="wb-step-card-title">自定义 Fastboot 命令</div>
+<div class="wb-step-card-desc">手动输入任意 fastboot 命令</div>
+</div>
+</div>
+
+<!-- 表单页（动态填充） -->
+<div class="wb-step-form" id="wbStepForm" style="display:none;">
+<button class="btn small secondary wb-back-to-cards" data-action="wb-back-to-cards">← 返回</button>
+<div id="wbStepFormContent"></div>
+<div class="wb-form-actions">
+<button class="btn small" data-action="wb-add-step-confirm">添加到步骤列表</button>
+<button class="btn small secondary" data-action="wb-close-add-step-dialog">取消</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ===== Fastboot 快捷命令弹窗 ===== -->
+<div class="modal-overlay" id="wbFastbootDialog" style="display:none;">
+<div class="modal-box wb-dialog-box">
+<div class="wb-dialog-header">
+<h3 class="wb-dialog-title">添加 Fastboot 快捷命令</h3>
+<button class="modal-close-btn" data-action="wb-close-fastboot-dialog">✕</button>
+</div>
+<div class="wb-dialog-body">
+<div class="wb-qa-label">查询</div>
 <div class="cmd-template-row" style="flex-wrap:wrap">
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="devices" data-label="设备列表">设备列表</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar all" data-label="全部变量">全部变量</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar product" data-label="产品代号">产品代号</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar current-slot" data-label="当前槽位">当前槽位</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar unlocked" data-label="Bootloader状态">Bootloader状态</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar security-patch-level" data-label="安全补丁">安全补丁</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar serialno" data-label="序列号">序列号</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="getvar bootloader-version" data-label="引导版本">引导版本</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="flashing get_unlock_ability" data-label="解锁能力">解锁能力</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="devices" data-label="设备列表">设备列表</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="getvar all" data-label="全部变量">全部变量</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="getvar product" data-label="产品代号">产品代号</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="getvar current-slot" data-label="当前槽位">当前槽位</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="getvar unlocked" data-label="Bootloader状态">Bootloader状态</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="getvar serialno" data-label="序列号">序列号</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="flashing get_unlock_ability" data-label="解锁能力">解锁能力</button>
 </div>
 <div class="wb-qa-label">🔄 重启到</div>
 <div class="cmd-template-row">
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="reboot" data-label="重启到系统" data-level="warn">重启到系统</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="reboot bootloader" data-label="重启到 Bootloader" data-level="warn">重启到 Bootloader</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="reboot fastboot" data-label="重启到 Fastbootd" data-level="warn">重启到 Fastbootd</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="reboot recovery" data-label="重启到 Recovery" data-level="warn">重启到 Recovery</button>
+<button class="cmd-template wb-qa-warn" data-action="wb-add-quick-step" data-cmd="reboot" data-label="重启到系统">重启到系统</button>
+<button class="cmd-template wb-qa-warn" data-action="wb-add-quick-step" data-cmd="reboot bootloader" data-label="重启到 Bootloader">重启到 Bootloader</button>
+<button class="cmd-template wb-qa-warn" data-action="wb-add-quick-step" data-cmd="reboot fastboot" data-label="重启到 Fastbootd">重启到 Fastbootd</button>
+<button class="cmd-template wb-qa-warn" data-action="wb-add-quick-step" data-cmd="reboot recovery" data-label="重启到 Recovery">重启到 Recovery</button>
 </div>
 <div class="wb-qa-label">🔓 解锁 / 上锁</div>
 <div class="cmd-template-row">
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="flashing unlock" data-label="解锁 Bootloader" data-level="danger">解锁 Bootloader</button>
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="flashing lock" data-label="上锁 Bootloader" data-level="danger">上锁 Bootloader</button>
+<button class="cmd-template wb-qa-danger" data-action="wb-add-quick-step" data-cmd="flashing unlock" data-label="解锁 Bootloader">解锁 Bootloader</button>
+<button class="cmd-template wb-qa-danger" data-action="wb-add-quick-step" data-cmd="flashing lock" data-label="上锁 Bootloader">上锁 Bootloader</button>
 </div>
 <div class="wb-qa-label">🗑️ 擦除 / 双清</div>
 <div class="cmd-template-row">
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="erase userdata" data-label="擦除 userdata" data-level="data-loss">擦除 userdata</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="erase cache" data-label="擦除 cache">擦除 cache</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="format userdata" data-label="格式化 data" data-level="data-loss">格式化 data</button>
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="-w" data-label="双清(-w)" data-level="data-loss">双清(-w)</button>
-</div>
-<div class="wb-qa-label">💾 分区操作</div>
-<div class="cmd-template-row">
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="--disable-verity --disable-verification flash vbmeta vbmeta.img" data-label="刷入 vbmeta" data-level="danger">刷入 vbmeta</button>
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action" data-cmd-type="fastboot" data-cmd="flash boot boot.img" data-label="刷入 boot" data-level="danger">刷入 boot</button>
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action-needs-arg" data-cmd-type="fastboot" data-cmd="boot __ARG__" data-label="临时启动镜像" data-arg-placeholder="镜像路径">临时启动镜像</button>
-</div>
-</div>
-<div id="wbQAAdb" class="wb-qa-section" style="display:none">
-<div class="cmd-template-row" style="flex-wrap:wrap">
-<button class="cmd-template wb-qa-safe" data-action="wb-quick-action" data-cmd-type="adb" data-cmd="devices" data-label="ADB设备">ADB设备</button>
-</div>
-<div class="wb-qa-label">🔄 重启到</div>
-<div class="cmd-template-row">
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="adb" data-cmd="reboot" data-label="重启到系统" data-level="warn">重启到系统</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="adb" data-cmd="reboot bootloader" data-label="重启到 Bootloader" data-level="warn">重启到 Bootloader</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="adb" data-cmd="reboot fastboot" data-label="重启到 Fastbootd" data-level="warn">重启到 Fastbootd</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action" data-cmd-type="adb" data-cmd="reboot recovery" data-label="重启到 Recovery" data-level="warn">重启到 Recovery</button>
-</div>
-<div class="wb-qa-label">📂 文件操作</div>
-<div class="cmd-template-row">
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action-needs-arg" data-cmd-type="adb" data-cmd="install __ARG__" data-label="安装 APK" data-arg-placeholder="APK路径">安装APK</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action-needs-arg" data-cmd-type="adb" data-cmd="push __ARG__ /sdcard/" data-label="推送文件到设备" data-arg-placeholder="本地文件路径">推送文件</button>
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action-needs-arg" data-cmd-type="adb" data-cmd="pull __ARG__ ./" data-label="从设备拉取文件" data-arg-placeholder="设备端路径">拉取文件</button>
-<button class="cmd-template wb-qa-danger" data-action="wb-quick-action-needs-arg" data-cmd-type="adb" data-cmd="sideload __ARG__" data-label="侧载刷入" data-arg-placeholder="ZIP路径" data-level="danger">侧载刷入</button>
-</div>
-<div class="wb-qa-label">⚙️ 应用</div>
-<div class="cmd-template-row">
-<button class="cmd-template wb-qa-warn" data-action="wb-quick-action-needs-arg" data-cmd-type="adb" data-cmd="shell pm clear __ARG__" data-label="清除应用数据" data-arg-placeholder="包名">清除应用数据</button>
+<button class="cmd-template wb-qa-danger" data-action="wb-add-quick-step" data-cmd="erase userdata" data-label="擦除 userdata">擦除 userdata</button>
+<button class="cmd-template wb-qa-safe" data-action="wb-add-quick-step" data-cmd="erase cache" data-label="擦除 cache">擦除 cache</button>
+<button class="cmd-template wb-qa-danger" data-action="wb-add-quick-step" data-cmd="-w" data-label="双清(-w)">双清(-w)</button>
 </div>
 </div>
 </div>
-
-<!-- 添加步骤区 -->
-<div class="sub-section">
-<h3 class="section-title">添加步骤</h3>
-<div class="wb-type-switch">
-<button class="wb-type-btn active" data-action="wb-switch-type" data-type="fastboot">刷写命令</button>
-<button class="wb-type-btn" data-action="wb-switch-type" data-type="adb">ADB 命令</button>
-<button class="wb-type-btn" data-action="wb-switch-type" data-type="fastbootcmd">Fastboot 命令</button>
 </div>
-<div id="wbAddFastboot">
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">分区名来源：</label>
-<select id="wbPartSource" style="width:100px">
-<option value="custom">自定义</option>
-<option value="detected">已检测分区</option>
-</select>
-</div>
-<div id="wbPartDetected" style="display:none">
-<div class="custom-row">
-<button class="btn small btn-primary" data-action="wb-detect-partitions">📡 检测分区</button>
-<select id="wbPartSelect" style="flex:1;min-width:100px"><option value="">先检测分区</option></select>
-</div>
-</div>
-<div id="wbPartCustom">
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">分区名：</label>
-<input type="text" id="wbPartName" placeholder="如 boot_a、dtbo、vbmeta" style="flex:1;min-width:100px">
-</div>
-</div>
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">镜像来源：</label>
-<select id="wbImgSource" style="width:100px">
-<option value="none">无镜像</option>
-<option value="rom">线刷包镜像</option>
-<option value="custom">自定义绝对路径</option>
-</select>
-</div>
-<div id="wbImgRomRow" style="display:none">
-<div class="custom-row">
-<select id="wbRomSelect" style="width:120px"><option value="">选择已解压线刷包</option></select>
-<select id="wbRomImgSelect" style="flex:1;min-width:100px"><option value="">选择镜像</option></select>
-</div>
-</div>
-<div id="wbImgCustomRow" style="display:none">
-<div class="custom-row">
-<input type="text" id="wbImgCustomPath" placeholder="镜像绝对地址，如 /sdcard/123456/image/boot.img" style="flex:1;min-width:100px">
-</div>
-</div>
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">附加参数：</label>
-<input type="text" id="wbFbExtra" placeholder="可选，如 --disable-verity --disable-verification" style="flex:1;min-width:80px">
-<button class="btn small" data-action="wb-add-fastboot-step">添加</button>
-</div>
-</div>
-<div id="wbAddAdb" style="display:none">
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">ADB参数：</label>
-<input type="text" id="wbAdbArgs" placeholder="如 devices / reboot bootloader / shell getprop ro.product" style="flex:1;min-width:100px">
-<button class="btn small" data-action="wb-add-adb-step">添加</button>
-</div>
-</div>
-<div id="wbAddFastbootCmd" style="display:none">
-<div class="custom-row">
-<label style="font-size:12px;color:var(--text-muted);white-space:nowrap">fastboot参数：</label>
-<input type="text" id="wbFastbootCmdArgs" placeholder="如 devices / getvar all / reboot bootloader / flash boot boot.img" style="flex:1;min-width:100px">
-<button class="btn small" data-action="wb-add-fastbootcmd-step">添加</button>
-</div>
-</div>
-</div>
-
-<!-- 步骤列表 -->
-<div class="sub-section">
-<h3 class="section-title">步骤列表 <span id="wbStepCount" class="step-count"></span></h3>
-<div id="wbStepList" style="max-height:300px;overflow-y:auto"><div class="empty-state">暂无步骤，请添加 Fastboot/ADB/Shell 命令。</div></div>
-</div>
-
-<!-- 执行控制 -->
-<div class="sub-section">
-<div class="wb-control-row">
-<button class="btn small btn-primary" id="wbRunAllBtn" data-action="wb-run-all">▶ 全部执行</button>
-<button class="btn small btn-success" id="wbRunAllDryBtn" data-action="wb-run-all-dry">▶ 模拟执行</button>
-<button class="btn small btn-purple" data-action="wb-export-script">📄 导出脚本</button>
-<button class="btn small danger" data-action="wb-clear-steps">清空</button>
-<button class="btn small" data-action="wb-save-scheme">💾 保存方案</button>
-<button class="btn small" data-action="wb-manage-schemes">⚙️ 方案管理</button>
-</div>
-</div>
-
-<!-- 脚本预览 -->
-<div id="wbScriptPreview" style="display:none">
-<h3 class="section-title mb-6">生成的 .sh 脚本</h3>
-<div class="wb-preview-actions">
-<button class="btn small" data-action="wb-copy-script">复制脚本</button>
-<button class="btn small" data-action="wb-download-script">下载 .sh</button>
-<button class="btn small" data-action="wb-close-script-preview">收起</button>
-</div>
-<pre id="wbScriptCode" style="background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
-</div>
-
-<!-- 输出区域 -->
-<div class="module-status" id="wbStatus">工作台状态：等待添加步骤。</div>
-<div class="module-progress" id="wbProgress"><div class="module-progress-bar"></div><span class="module-progress-text">0%</span></div>
-</div>
-
-<!-- ===== /视图: 工作台 ===== -->
 
 <!-- 4. 工具箱 -->
 <!-- ===== 视图: 工具箱 ===== -->
@@ -504,28 +621,22 @@ window.addEventListener('unhandledrejection', function(e) {
 <div class="divider"></div>
 <div class="tool-group warn">
 <h3>关闭VBmeta校验</h3>
-<div class="row">
-<label>镜像来源：</label>
-<select id="vbmetaSource" style="width:100px">
-<option value="custom">自定义绝对路径</option>
-<option value="rom">已解压刷机包</option>
+<div class="row" style="align-items:center;gap:8px;">
+<button class="btn small secondary" id="vbmetaPickBtn" style="flex:0 0 auto;">📁 选择 vbmeta 镜像</button>
+<span id="vbmetaPathDisplay" style="flex:1;min-width:0;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">未选择镜像文件</span>
+<input type="hidden" id="vbmetaImagePath" value="">
+</div>
+<div class="row" style="align-items:center;gap:8px;margin-top:8px;">
+<label style="font-size:12px;white-space:nowrap;">参数位置：</label>
+<select id="vbmetaParamPos" style="flex:0 0 auto;font-size:12px;padding:4px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--card-bg);color:var(--text-color);">
+<option value="before">参数在 flash 前 · 标准写法（--disable-verity --disable-verification flash vbmeta 镜像）</option>
+<option value="after">参数在 flash 后 · 兼容写法（flash vbmeta 镜像 --disable-verity --disable-verification）</option>
 </select>
 </div>
-<div id="vbmetaRomRow" style="display:none">
-<div class="row">
-<select id="vbmetaRomSelect" style="min-width:120px"><option value="">选择已解压线刷包</option></select>
-<select id="vbmetaRomImgSelect" style="flex:1;min-width:180px"><option value="">选择镜像</option></select>
-</div>
-</div>
-<div id="vbmetaCustomRow">
-<div class="row">
-<input type="text" id="vbmetaSelect" style="flex:1;min-width:180px" placeholder="镜像绝对路径，如 /sdcard/123456/image/vbmeta.img">
-</div>
-</div>
-<div class="row">
+<div class="row" style="margin-top:8px;">
 <button class="btn small warn" id="disableVbmetaBtn" disabled>执行关闭校验</button>
 </div>
-<p class="tip">选择「自定义绝对路径」手动输入镜像地址，或选择「已解压刷机包」从项目列表中选取镜像；工具会校验路径安全性并执行关闭校验。</p>
+<p class="tip">选择 vbmeta 镜像文件，工具会刷入并关闭校验。参数在前为谷歌官方标准写法，参数在后为兼容写法。</p>
 <p class="button-hint" id="vbmetaHint">按钮不可用：请先检测 Fastboot 设备并选择 vbmeta 镜像。</p>
 </div>
 
@@ -568,15 +679,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </details>
 
 <div class="divider"></div>
-</div>
-
-<!-- 工作台方案管理弹窗 -->
-<div id="wbSchemePanel" data-action="wb-close-scheme-panel-backdrop">
-<div class="wb-scheme-card">
-<h3 class="scheme-panel-title">⚙️ 方案管理</h3>
-<div id="wbSchemeList"></div>
-<div class="scheme-panel-close"><button class="btn small" data-action="wb-close-scheme-panel">关闭</button></div>
-</div>
 </div>
 
 <!-- ===== /视图: 工具箱 ===== -->
@@ -659,31 +761,54 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 </div>
 
+<!-- 赞助作者弹窗 -->
+<div class="modal-overlay" id="sponsorModal" style="display:none;z-index:1300;">
+<div class="sponsor-modal-box">
+<div class="sponsor-modal-header">
+<span class="sponsor-modal-title">🥤 赞助作者（请作者喝肥宅快乐水）</span>
+<button class="sponsor-close-btn" data-action="close-sponsor">✕</button>
+</div>
+<div class="sponsor-modal-body">
+<p class="sponsor-desc">如果这个工具对你有帮助，欢迎请作者喝瓶肥宅快乐水 🎉</p>
+<div class="sponsor-qr-wrap">
+<img id="sponsorQrImg" src="/static/img/sponsor_qrcode.png" alt="赞助二维码" class="sponsor-qr-img">
+</div>
+<p class="sponsor-hint">微信扫码赞助 · 金额随意</p>
+<div class="sponsor-actions">
+<button class="btn small" id="sponsorSaveBtn" data-action="save-sponsor-qr">💾 保存图片</button>
+<button class="btn secondary small" id="sponsorShareBtn" data-action="share-sponsor-qr">📤 分享</button>
+<button class="btn secondary small" id="sponsorDownloadBtn" data-action="download-sponsor-qr">⬇️ 下载</button>
+</div>
+</div>
+</div>
+</div>
+
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <!-- 重构新增：安全 DOM 访问与模块初始化系统，必须在 state.js 之前加载 -->
 <script src="/static/js/core/safe-dom.js?v=5"></script>
 <script src="/static/js/core/module-system.js?v=5"></script>
-<script src="/static/js/core/state.js?v=5"></script>
+<script src="/static/js/core/state.js?v=6"></script>
 <script src="/static/js/core/config.js?v=5"></script>
+<script src="/static/js/core/file-api.js?v=5"></script>
+<script src="/static/js/core/classifier.js?v=3"></script>
+<script src="/static/js/core/parser-runner.js?v=3"></script>
 <script src="/static/js/core/api.js?v=5"></script>
-<script src="/static/js/core/utils.js?v=5"></script>
-<script src="/static/js/core/ui.js?v=5"></script>
-<script src="/static/js/views/device.js?v=5"></script>
-<script src="/static/js/views/device_info.js?v=5"></script>
-<script src="/static/js/views/rom.js?v=5"></script>
-<script src="/static/js/views/bat.js?v=5"></script>
+<script src="/static/js/core/utils.js?v=7"></script>
+<script src="/static/js/core/ui.js?v=8"></script>
+<script src="/static/js/views/device.js?v=11"></script>
+<script src="/static/js/views/device_info.js?v=6"></script>
 <script src="/static/js/components/interactive_selector.js?v=5"></script>
-<script src="/static/js/components/bat_risk.js?v=5"></script>
-<script src="/static/js/components/custom_flash.js?v=5"></script>
-<script src="/static/js/views/flash.js?v=5"></script>
-<script src="/static/js/components/toolbox_ops.js?v=5"></script>
-<script src="/static/js/components/webusb.js?v=5"></script>
-<script src="/static/js/views/workbench.js?v=5"></script>
-<script src="/static/js/views/changelog.js?v=5"></script>
-<script src="/static/js/views/tools.js?v=5"></script>
+<script src="/static/js/components/toolbox_ops.js?v=7"></script>
+<script type="module" src="/static/js/components/webusb.js?v=8"></script>
+<script src="/static/js/views/workbench.js?v=12"></script>
+<script src="/static/js/components/parser-manager.js?v=9"></script>
+<script src="/static/js/components/file-picker.js?v=6"></script>
+<script src="/static/js/components/batch-new.js?v=17"></script>
+<script src="/static/js/views/changelog.js?v=23"></script>
+<script src="/static/js/views/tools.js?v=6"></script>
 
 <script src="/static/js/components/upload.js?v=5"></script>
-<script src="/static/js/core/init.js?v=5"></script>
+<script src="/static/js/core/init.js?v=7"></script>
 <script>
 'use strict';
 // 错误边界：init.js 现在通过 DOMContentLoaded + Modules.init() 统一初始化，

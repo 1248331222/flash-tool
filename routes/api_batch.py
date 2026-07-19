@@ -19,8 +19,8 @@ from flask import Blueprint, request, jsonify
 from config import ROM_DIR, FASTBOOT_PATH, BATCH_PROC_WAIT_TIMEOUT, logger
 from core.utils import api_err
 from core.extractor import tasks, gen_task_id
-from core.flasher import create_batch_flash_task, cancel_batch_flash_task, get_latest_batch_task
-from core.rom_handler import resolve_rom_folder_name
+from core.flasher import create_batch_flash_task, cancel_batch_flash_task, get_latest_batch_task, _now, _append_log
+
 from routes.api_batch_helpers import (
     public_task,
     force_rewrite_fastboot_paths,
@@ -111,7 +111,7 @@ def start_batch_task():
 
         # 25C：如果前端传了 hydra_summary，通过 Pipeline 检查阻断
         hydra_summary = data.get("hydra_summary")
-        if hydra_summary:
+        if hydra_summary and isinstance(hydra_summary, dict):
             quality = hydra_summary.get("quality") or {}
             script_check = hydra_summary.get("script_resource_check") or {}
 
@@ -138,7 +138,9 @@ def start_batch_task():
         )
         return jsonify(result)
     except Exception as e:
-        logger.error(f"启动线刷任务异常: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"启动线刷任务异常:\n{tb}")
         return jsonify({"success": False, "error": f"启动线刷任务异常: {str(e)}"})
 
 
@@ -163,6 +165,18 @@ def cancel_batch_task(task_id):
     return jsonify(cancel_batch_flash_task(task_id))
 
 
+@batch_task_bp.route('/pause/<task_id>', methods=['POST'])
+def pause_batch_task(task_id):
+    """暂停任务（协作式：当前步骤完成后停止）"""
+    task = tasks.get(task_id)
+    if not task or task.get("type") != "batch_flash":
+        return jsonify({"success": False, "error": "任务不存在"})
+    task["pause_requested"] = True
+    task["updated_at"] = _now()
+    _append_log(task, "已请求暂停，当前步骤完成后停止。")
+    return jsonify({"success": True})
+
+
 @batch_task_bp.route('/direct_execute', methods=['POST'])
 def direct_execute_script():
     """
@@ -181,7 +195,7 @@ def direct_execute_script():
         return jsonify({"success": False, "error": "脚本内容为空"})
 
     try:
-        script_dir = os.path.join(ROM_DIR, resolve_rom_folder_name(rom_name)) if rom_name else ROM_DIR
+        script_dir = os.path.join(ROM_DIR, rom_name) if rom_name else ROM_DIR
         os.makedirs(script_dir, exist_ok=True)
 
         # 1. 预处理：替换硬编码 fastboot 路径为 $FASTBOOT

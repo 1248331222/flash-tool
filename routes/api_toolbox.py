@@ -19,7 +19,12 @@ def reboot_route():
     result = reboot_device(target)
     return jsonify({
         "success": result["success"],
-        "msg": "重启指令已发送" if result["success"] else result["error"]
+        "msg": "重启指令已发送" if result["success"] else result.get("error", "重启失败"),
+        "error": result.get("error", ""),
+        "output": result.get("output", ""),
+        "combined": result.get("combined", ""),
+        "diagnosis": result.get("diagnosis", ""),
+        "category": result.get("category", ""),
     })
 
 

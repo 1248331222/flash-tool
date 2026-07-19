@@ -1,7 +1,176 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v3.9.1 (2026-07-10)
+const CHANGELOG_TEXT = `v4.0.6 (2026-07-19)
+- 新增：自定义命令支持会话工作目录持久化（cd 命令真正生效）
+  · 纯 cd 命令会更新会话工作目录，后续命令在新目录下执行
+  · 支持 cd /path、cd ~、cd ../path、cd relative/path 等形式
+  · 界面显示当前工作目录（📁 标识），cd 成功后显示新目录
+  · 新增 /api/shell/cwd 和 /api/shell/reset 接口
+  · 会话 2 小时未活跃自动清理，最多保留 50 个会话
+
+v4.0.5 (2026-07-19)
+- 修复：后端模式自定义命令无法执行 termux 专有命令（termux-usb/pkg/am 等）
+  · 改用登录 shell（bash -l -c）加载完整 .profile/.bashrc
+  · 显式补全 Termux 环境变量（PATH/PREFIX/TMPDIR/LD_LIBRARY_PATH）
+  · 自动把 fastboot/adb 所在目录注入 PATH
+- 优化：自定义命令输入框新增 datalist 命令示例（含 termux-usb/pkg/am 等）
+- 优化：WebUSB 模式提示区分后端模式可用的 termux 命令示例
+
+v4.0.4 (2026-07-19)
+- 新增：WebUSB 模式下禁用线刷页面，显示内存爆炸警告及作者联系方式（vx:KS30618）
+- 修复：工作台配置选择框点击后无法弹出选择列表（datalist 改为原生 select，移动端兼容）
+- 新增：版本页面头部增加「赞助作者」按钮，弹窗显示微信收款二维码（可保存/分享/下载）
+
+v4.0.3 (2026-07-19)
+- 修复：工作台配置选择框无法选择已有配置（readonly 属性导致 datalist 下拉失效）
+- 优化：非编辑模式下通过 keydown 拦截阻止自由输入，仅允许 datalist 选择
+- 优化：非编辑模式下输入不存在的配置名时恢复原值并提示（需先点击修改按钮创建）
+
+v4.0.2 (2026-07-19)
+- 修复：后端模式 shell 超时太短（30秒→300秒默认，最大1800秒/30分钟，支持大镜像刷写）
+- 修复：WebUSB 模式下完全禁止命令执行，现在支持 fastboot/adb 纯命令
+- 优化：后端模式 fastboot 命令走专用 API（使用项目内部 fastboot 二进制），flash 命令超时1800秒
+- 优化：后端模式 adb 命令走专用 API（使用项目内部 adb 二进制）
+- 优化：后端模式其他命令走 bash（支持管道、重定向、多行脚本）
+- 优化：WebUSB 模式 fastboot flash 命令给出明确提示（需使用线刷/工作台页面）
+- 优化：命令输入框提示文字区分模式（后端：bash/fastboot/adb，WebUSB：fastboot/adb）
+
+v4.0.1 (2026-07-19)
+- 修复：文件管理器弹窗 z-index 未置顶问题（文件选择器被工作台弹窗遮挡无法使用）
+- 修复：AB 机型补全提示文字与实际逻辑不符（实际逻辑：任一镜像带_a/_b则全部直接刷写，全部不带才补全）
+- 修复：AB 机型检查正则硬编码 .img 后缀，改为动态使用用户输入的后缀
+- 修复：WebUSB 模式下文件选择仍使用内部文件管理器，改为浏览器原生选择器
+- 新增：WebUSB 模式目录选择支持（webkitdirectory）
+- 新增：设备页面自定义命令/脚本执行功能（仅后端模式，WebUSB 模式提示不可用）
+- 新增：后端 /api/shell/run API（bash 命令执行，支持管道/重定向/多行脚本，超时保护）
+- 优化：工作台文件选择器在 WebUSB 模式下给出明确的路径不可用提示
+
+v4.0.0 (2026-07-19)
+- 重构：工作台页面 v4.0.0 全新重构，配置栏 + 步骤列表 + 添加步骤弹窗 + 执行栏
+- 新增：配置管理（后端文件系统存储，支持导入/导出/删除，配置自动保存）
+- 新增：配置栏 input+datalist 合一，修改按钮智能切换编辑/确认模式
+- 新增：步骤列表支持拖拽排序、单独执行按钮、风险等级颜色标识
+- 新增：添加步骤弹窗（卡片选择→表单），支持6种步骤类型：
+  · 刷写镜像（flash 分区 镜像）
+  · 刷写镜像参数在前（--参数 flash 分区 镜像）
+  · 刷写镜像参数在后（flash 分区 镜像 --参数）
+  · 遍历目录镜像（批量刷写目录内镜像，支持AB机型自动补全_a/_b）
+  · COW分区清理（delete-logical-partition 分区-cow，支持AB补全）
+  · 自定义Fastboot命令（手动输入任意命令）
+- 新增：AB机型补全逻辑（目录有_a/_b则直接刷写，无则同文件补全两条_a/_b步骤）
+- 新增：Fastboot快捷命令弹窗（查询/重启/解锁/擦除分类，添加到步骤列表）
+- 新增：执行栏（全部执行/模拟执行/清空步骤/暂停继续）
+- 新增：后端 /api/workbench 配置管理API（configs/workbench/ 目录存储JSON）
+- 新增：后端 /api/fs/write-abs 绝对路径写入接口（导出配置专用）
+
+v3.9.20 (2026-07-19)
+- 重构：工作台页面精简，清理所有旧功能（步骤列表、方案管理、脚本导出、ADB快捷命令等）
+- 保留：工作台仅保留 Fastboot 快捷命令功能（点击按钮直接执行）
+- 优化：快捷命令按钮直接执行 fastboot 命令，不再添加到步骤列表
+- 标记：工作台页面标记为"重构中"，后续将提供新的工作台方案
+
+v3.9.19 (2026-07-19)
+- 修复：工具箱 rebootFb/rebootBootloader 双重等待问题（sendRebootCommand + waitForFastbootReconnect）
+- 修复：waitForReconnectAfterReboot 检测到设备后不更新 canFastboot/canAdb 状态变量
+- 修复：rebootSys 中 progress 管理与 sendRebootCommand 冲突
+- 优化：waitForReconnectAfterReboot 等待时间从 30 秒增加到 60 秒
+- 优化：waitForReconnectAfterReboot 检测成功后自动刷新设备信息
+- 优化：WebUSB 模式下重启后提示用户重新检测设备
+- 优化：recovery 模式检测支持 device/sideload 等ADB模式
+
+v3.9.18 (2026-07-18)
+- 修复：分段执行时后端日志步骤序号与前端步骤列表对不上的问题
+- 新增：后端日志显示全局步骤序号 [全局X/总Y]，而非段内序号 [X/段Y]
+- 新增：前端提交步骤段时传递 step_offset 和 step_total 参数
+- 优化：任务启动日志显示本段范围和全局总数
+
+v3.9.17 (2026-07-18)
+- 修复：工具箱重启命令只支持 fastboot 模式，ADB 模式下重启失败
+- 修复：后端 reboot_route 返回缺少 error 字段，前端错误提示为 undefined
+- 新增：后端 reboot_device 自动检测设备模式，ADB 设备用 adb reboot，Fastboot 设备用 fastboot reboot
+- 新增：前端重启后自动等待设备重连（最多 30 秒），支持所有重启目标
+- 修复：WebUSB ADB 设备重启到 fastboot 时 target 转换为 bootloader
+
+v3.9.16 (2026-07-18)
+- 修复：等待重连弹窗设备状态检测 bug（data.connected 字段不存在导致永远检测失败）
+- 修复：等待重连弹窗没有关闭按钮，用户无法手动跳过
+- 新增：等待重连弹窗增加"立即检测"和"跳过"按钮
+- 新增：OTG 授权提示文字，引导用户在手机上授权
+- 新增：超时后不自动关闭弹窗，等待用户手动检测或跳过
+- 优化：合并连续的 wait_reconnect 步骤，避免重复等待
+- 优化：检测次数从 50 次增加到 60 次，总等待时间 2 分钟
+
+v3.9.15 (2026-07-18)
+- 修复：SH 脚本被误分类为 BAT 的问题，改为按文件后缀直接分类
+- 新增：分类器增加 decompress 特征检测（zstd/7z/unzip）
+- 优化：classify 函数增加 fileName 参数，后缀优先于内容检测
+
+v3.9.14 (2026-07-17)
+- 新增：支持交互式 BAT 脚本（set /p 用户输入 + goto 跳转 + if 条件分支）
+- 新增：解析器检测到 set /p 时自动切换 generator 模式，前端弹出选择框
+- 新增：支持多行 if 块合并（if ... ( 换行 goto ) else if ... 合并为单行处理）
+- 修复：%* 参数占位符在 makeStep 中被错误识别为子命令，现在正确跳过并保留在 raw 中
+- 优化：if 条件统一处理 goto/exit/command 三种 action
+
+v3.9.13 (2026-07-17)
+- 新增：支持解析 BAT 脚本中的 zstd 解压命令（如 zstd.exe --rm -d super.zst -o super.img）
+- 新增：支持 7z/7za/7zr 解压命令和 unzip 命令
+- 新增：步骤列表显示解压步骤，后端自动执行解压（优先 zstd/7z 命令行，回退 Python 库）
+- 新增：解压后可选删除源文件（--rm 参数）
+
+v3.9.12 (2026-07-17)
+- 修复：%* / %1-%9 参数占位符空参数时残留问题，空参数自动移除占位符
+- 新增：参数输入框实时同步到步骤列表，修改参数即时更新命令预览
+- 优化：后端执行 API 空参数时也清理 %* 占位符，前后端双重保障
+- 更新：解析器开发指南规范 %* 处理方式，推荐解析器保留占位符
+
+v3.9.11 (2026-07-17)
+- 新增：解析器开发指南内嵌到解析器管理弹窗，支持在线阅读、全部复制、导出下载
+- 更新：解析器开发指南补充 wait_reconnect、prefixParams 参数位置、文件管理器、WebDAV 配置等内容
+- 新增：VBmeta 关闭校验支持参数在 flash 前后选择，参数在 flash 前为谷歌官方标准写法
+- 新增：VBmeta 镜像选择改为前端文件管理器，替代手动输入路径
+- 新增：WebDAV 配置弹窗，支持保存地址/用户名/密码到本地，默认坚果云配置
+- 优化：步骤列表去除风险标签，滚动到边界时链式传递到父容器
+- 修复：WebDAV 刷新列表后状态文字不更新（一直显示"加载中"）
+
+v3.9.10 (2026-07-16)
+- 修复：WebUSB 模式整体重构，引入 fastboot.mjs / adb.bundle.mjs 协议库
+- 修复：webusb.js 因 var selectedUsbDevice 与 state.js 的 let 重复声明导致整文件解析失败（claimWebUsbInterface 等全部未定义）的根因
+- 新增：ADB 接口走完整的 RSA 主机密钥授权握手（WebCrypto 生成，持久化到 localStorage），不再发送空 AUTH
+- 新增：Fastboot 支持 sparse 镜像分块、A/B 槽位自动解析、变长响应读取、断联重连
+- 修复：reboot-system 误发协议命令（应为 reboot）、flashing unlock 空格分隔未转冒号等问题
+
+v3.9.9 (2026-07-11)
+- 修复：clearReconnectCheckpoint/shouldAutoResumeAfterReconnect 移至公共模块，解决 webusb.js 未加载时报错
+- 修复：SH 解析器非 .img 文件（如 crclist.txt）不再提取为 fileName
+- 修复：get_image_path 非 .img 文件跳过 validate_image_rel_path 校验
+
+v3.9.8 (2026-07-11)
+- 修复：SH/BAT 脚本镜像路径丢失目录前缀导致的"镜像不存在"
+- 修复：get_image_path 增加反斜杠转正斜杠、纯文件名自动补齐 images/ 前缀
+- 修复：WebUSB 模式 claimWebUsbInterface / claimWebUsbFastboot 未定义
+- 修复：WebUSB Fastboot download 分块发送与响应协议正确实现
+
+v3.9.7 (2026-07-10)
+- 优化：_resolve_image_paths 移除文件存在性检查，不再误报 missing_files
+
+v3.9.6 (2026-07-10)
+- 优化：禁用SH管线文件存在性检查（sh_001/sh_002/共享模板不再报告 missing_files）
+- 修复：validate_image_rel_path 全局修复带前导"/"的相对路径误判
+
+v3.9.5 (2026-07-10)
+- 修复：validate_image_rel_path 中 os.path.isabs 误判带前导"/"的相对路径
+- 优化：crclist.txt/abl.elf 等非 .img 文件路径校验通过
+
+v3.9.4 (2026-07-10)
+- 修复：start_batch_task 中 hydra_summary 为字符串时调 .get() 崩溃
+
+v3.9.3 (2026-07-10)
+- 修复：移除镜像格式限制，支持 .bin/.mbn/.elf/.fw 等任意格式刷写
+- 优化：validate_image_rel_path / validate_absolute_image_path 不再硬性限制 .img 后缀
+
+v3.9.1 (2026-07-10)
 - 修复：非AB机型执行线刷时 set_active 步骤导致后端500崩溃
 - 修复：启动线刷任务路由未捕获异常导致返回非JSON错误
 - 优化：非AB设备自动跳过 set_active 步骤，不再中断刷机流程

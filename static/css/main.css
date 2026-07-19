@@ -205,6 +205,12 @@ select option{background:var(--input-bg);color:var(--text-primary)}
 /* ============ 弹窗 ============ */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:999;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .modal-mask.show{display:flex}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:999;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex}
+/* 文件管理器弹窗始终置顶（高于其他 modal-overlay） */
+#filePickerModal{z-index:1100}
+/* 确认弹窗始终置顶（高于文件管理器） */
+#confirmModal{z-index:1200}
 .modal-box{background:var(--card-bg);border-radius:16px;padding:20px;max-width:400px;width:100%;max-height:80vh;display:flex;flex-direction:column;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
 .modal-content{overflow-y:auto;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .modal-title{font-size:16px;margin-bottom:12px;color:var(--text-primary);font-weight:600;display:flex;align-items:center}
@@ -366,6 +372,10 @@ h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-
 
 .global-status #globalStatusText{overflow:hidden;text-overflow:ellipsis}
 
+.log-popup-btn{margin-left:auto;background:var(--accent-orange,#ff9f0a);color:#fff;border:none;border-radius:6px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600;flex-shrink:0;transition:opacity .2s,transform .15s}
+.log-popup-btn:hover{opacity:.85}
+.log-popup-btn:active{transform:scale(0.95)}
+
 .pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 0 0 rgba(48,209,88,0.5);animation:pulse 1.8s infinite}
 
 @keyframes pulse{70%{box-shadow:0 0 0 8px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
@@ -430,36 +440,49 @@ h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-
 .progress-label{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-secondary)}
 
 
-/* ============ 步骤列表 ============ */
-.step-list{max-height:280px;overflow-y:auto;margin:10px 0;border:none;border-radius:12px;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+/* ============ 步骤列表（线刷页） ============ */
+.step-list{overflow-y:auto;max-height:calc(100vh - 320px);min-height:120px;margin:10px 0;border:none;border-radius:12px;background:var(--card-bg);box-shadow:var(--card-shadow);overscroll-behavior:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 
-.step-item{padding:12px 16px;border-bottom:1px solid var(--separator);display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
-
+.step-item{padding:10px 12px;border-bottom:1px solid var(--separator);transition:background .15s}
 .step-item:last-child{border-bottom:none}
+.step-item:hover{background:var(--bg-tertiary)}
 
-.step-item .idx{color:var(--text-muted);min-width:24px;font-weight:600}
+.step-item-reconnect{background:rgba(90,130,255,.06);border-left:3px solid var(--accent-blue)}
+.step-item-reconnect:hover{background:rgba(90,130,255,.12)}
 
-.step-item .type{padding:3px 8px;border-radius:6px;font-size:11px;color:white;flex-shrink:0;font-weight:600}
+.step-reconnect-icon{font-size:14px;flex-shrink:0}
 
-.type-flash{background:var(--accent-blue)}
+.step-item-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.step-item-left{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.step-item-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
 
-.type-erase{background:var(--accent-orange)}
+.step-del-btn{background:var(--accent-red);border:none;color:#fff;font-size:11px;cursor:pointer;padding:3px 10px;flex-shrink:0;transition:opacity .15s;border-radius:6px;font-weight:500}
+.step-del-btn:hover{opacity:.85}
 
-.type-set{background:var(--accent-purple)}
+.step-num{color:var(--text-muted);font-size:12px;font-weight:600;min-width:18px;text-align:center;flex-shrink:0}
 
-.type-reboot{background:var(--accent-green)}
+.step-desc{font-size:13px;color:var(--text-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step-desc b{font-weight:600;color:var(--text-primary)}
 
-.type-devices{background:#5e5ce6}
+.step-risk{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;flex-shrink:0;letter-spacing:.3px}
 
-.type-other{background:var(--text-muted)}
+.step-cmd{font-size:11px;color:var(--text-muted);font-family:'Fira Code','Consolas',monospace;margin-top:4px;padding-left:28px;overflow-x:auto;white-space:pre;text-overflow:clip;opacity:.7;overscroll-behavior-x:contain;touch-action:pan-y pan-x;scrollbar-width:thin}
+.step-cmd::-webkit-scrollbar{height:3px}
+.step-cmd::-webkit-scrollbar-thumb{background:var(--text-muted);border-radius:2px}
 
-.type-getvar{background:#5e5ce6}
+/* ============ 执行栏（悬浮固定） ============ */
+.batch-exec-wrapper{position:fixed;bottom:calc(78px + env(safe-area-inset-bottom) + 4px);left:12px;right:12px;z-index:99;display:flex;flex-direction:column;gap:3px}
+.batch-status-bar{display:flex;align-items:center;gap:8px;padding:4px 18px;border-radius:999px;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);border:1px solid var(--separator);min-height:26px;margin:0 8px}
+.batch-status-text{font-size:11px;color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.batch-exec-bar{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;background:var(--frosted-bg);backdrop-filter:var(--frosted-filter);-webkit-backdrop-filter:var(--frosted-filter);box-shadow:0 -2px 10px rgba(0,0,0,.08);border:1px solid var(--separator)}
+.batch-exec-bar .btn{min-height:32px;font-size:12px;padding:4px 14px;margin:0}
+.batch-exec-bar .btn.small{min-height:28px;font-size:11px;padding:3px 10px}
+.batch-exec-bar #newExecuteBtn{flex:1;min-width:0}
+.batch-exec-bar #newClearStepsBtn{flex:0 0 auto;white-space:nowrap}
 
-.step-item .del-btn{margin-left:auto;background:var(--accent-red);border:none;color:white;padding:3px 8px;border-radius:6px;font-size:12px;cursor:pointer;transition:opacity 0.2s}
-
-.step-item .del-btn:hover{opacity:0.8}
-
-.step-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;white-space:nowrap}
+/* ============ 弹窗通用 ============ */
+.reconnect-modal,.reboot-warn-modal,.pause-confirm-modal{position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px)}
+.reconnect-box,.reboot-warn-box,.pause-confirm-box{background:var(--card-bg);border-radius:16px;padding:24px;max-width:340px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)}
 
 .badge-avb{background:#ff9f0a;color:#fff}
 
@@ -514,6 +537,33 @@ h1{color:var(--accent-blue);font-size:22px;margin-bottom:8px;display:flex;align-
 .log-box .ok-line{color:var(--accent-green)}
 
 .log-box .info-line{color:var(--accent-blue)}
+
+/* ============ 日志弹窗专用 ============ */
+.log-modal-box{max-width:680px;max-width:min(680px,92vw);max-height:85vh;padding:10px;display:flex;flex-direction:column}
+.log-modal-header{display:flex;align-items:center;margin-bottom:6px;flex-shrink:0}
+.log-modal-title{margin:0;font-size:14px;font-weight:600;flex:1}
+.log-modal-content{flex:1;min-height:0;height:auto;max-height:calc(85vh - 90px);padding:8px;border-radius:8px;user-select:text;-webkit-user-select:text}
+.log-modal-footer{display:flex;gap:6px;justify-content:flex-end;margin-top:6px;flex-shrink:0}
+.log-modal-footer .btn.small{min-height:32px;padding:4px 12px;font-size:12px}
+
+/* ============ 文件管理器弹窗 ============ */
+.fp-modal-box{max-width:520px;max-width:min(520px,92vw);max-height:85vh;padding:10px;display:flex;flex-direction:column}
+.fp-header{display:flex;align-items:center;margin-bottom:6px;flex-shrink:0}
+.fp-title{margin:0;font-size:14px;font-weight:600;flex:1}
+.fp-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0}
+.fp-toolbar .btn.small{min-height:30px;padding:3px 10px;font-size:12px;flex-shrink:0}
+.fp-path{flex:1;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Fira Code','Consolas',monospace;padding:4px 6px;background:var(--bg-tertiary);border-radius:6px;min-width:0}
+.fp-list{flex:1;overflow-y:auto;min-height:200px;max-height:calc(85vh - 130px);border-radius:8px;background:var(--bg-secondary);border:1px solid var(--separator);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.fp-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--separator);font-size:13px;cursor:default}
+.fp-item.fp-clickable{cursor:pointer;transition:background .15s}
+.fp-item.fp-clickable:hover{background:var(--bg-tertiary)}
+.fp-item.fp-clickable:active{background:var(--bg-primary)}
+.fp-item.fp-disabled{opacity:0.4}
+.fp-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center}
+.fp-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.fp-size{font-size:11px;color:var(--text-muted);flex-shrink:0;font-family:'Fira Code','Consolas',monospace}
+.fp-footer{display:flex;gap:6px;justify-content:flex-end;margin-top:6px;flex-shrink:0}
+.fp-footer .btn.small{min-height:32px;padding:4px 12px;font-size:12px}
 
 
 /* ============ 自定义命令 ============ */

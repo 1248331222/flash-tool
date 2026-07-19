@@ -104,8 +104,9 @@ function updateBtnState() {
     document.getElementById('readDeviceInfoBtn').disabled = !fastbootUsable;
     document.getElementById('querySlotBtn').disabled = !fastbootUsable;
     const _rcfb = document.getElementById('runCustomFastbootBtn'); if(_rcfb) _rcfb.disabled = !backendReady;
-    const vbmetaInput = document.getElementById('vbmetaSelect');
-    document.getElementById('disableVbmetaBtn').disabled = !vbmetaUsable || !(vbmetaInput && vbmetaInput.value.trim());
+    const vbmetaInput = document.getElementById('vbmetaImagePath');
+    const disableVbmetaBtn = document.getElementById('disableVbmetaBtn');
+    if (disableVbmetaBtn) disableVbmetaBtn.disabled = !vbmetaUsable || !(vbmetaInput && vbmetaInput.value.trim());
     document.getElementById('setSlotBtn').disabled = !fastbootUsable;
     document.getElementById('wipeBtn').disabled = !fastbootUsable;
     document.getElementById('wipeMetadataBtn').disabled = !fastbootUsable;
@@ -114,11 +115,11 @@ function updateBtnState() {
     document.getElementById('lockBlBtn').disabled = !fastbootUsable;
     document.getElementById('simulateBtn').disabled = stepList.length === 0;
     document.getElementById('clearBatchStepsBtn').disabled = stepList.length === 0;
-    updateBatchActionState({fastbootUsable, adbUsable, anyUsable, flashModeUsable, backendMode});
-    updateButtonHints({fastbootUsable, adbUsable, anyUsable, flashModeUsable, backendMode, vbmetaUsable});
-    renderCustomList();
-    updateSmartUI();
-    updatePrecheckSummary();
+    if (typeof updateBatchActionState === 'function') updateBatchActionState({fastbootUsable, adbUsable, anyUsable, flashModeUsable, backendMode});
+    if (typeof updateButtonHints === 'function') updateButtonHints({fastbootUsable, adbUsable, anyUsable, flashModeUsable, backendMode, vbmetaUsable});
+    if (typeof renderCustomList === 'function') renderCustomList();
+    if (typeof updateSmartUI === 'function') updateSmartUI();
+    if (typeof updatePrecheckSummary === 'function') updatePrecheckSummary();
 }
 
 function updateButtonHints(state = {}) {
@@ -127,15 +128,15 @@ function updateButtonHints(state = {}) {
     const anyUsable = state.anyUsable ?? (fastbootUsable || canAdb || webusbAdbReady);
     const backendMode = state.backendMode ?? (appRunMode === 'backend');
     const vbmetaUsable = state.vbmetaUsable ?? (appRunMode === 'webusb' ? webusbFastbootReady : backendFastbootUsable);
-    const vbmetaSelected = !!(document.getElementById('vbmetaSelect')?.value || '').trim();
+    const vbmetaSelected = !!(document.getElementById('vbmetaImagePath')?.value || '').trim();
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     setText('rebootHint', anyUsable ? '可用：已检测到 ADB 或 Fastboot 设备。' : '按钮不可用：请先检测 ADB/Fastboot 设备。');
     const modeName = appRunMode === 'webusb' ? 'WebUSB Fastboot' : '后端 Fastboot';
-    let vb = `可用：已输入 vbmeta 镜像地址，将通过 ${modeName} 执行关闭校验。`;
+    let vb = `可用：已选择 vbmeta 镜像文件，将通过 ${modeName} 执行关闭校验。`;
     if (!vbmetaUsable) vb = appRunMode === 'webusb'
         ? '按钮不可用：请先在 WebUSB 模式检测并连接 Fastboot/Bootloader 设备。'
         : '按钮不可用：请先检测到 Fastboot/Bootloader 设备。';
-    else if (!vbmetaSelected) vb = '按钮不可用：请先输入 vbmeta 镜像绝对地址。';
+    else if (!vbmetaSelected) vb = '按钮不可用：请先选择 vbmeta 镜像文件。';
     setText('vbmetaHint', vb);
     setText('slotHint', fastbootUsable ? '可用：已检测到 Fastboot 设备。切槽前请确认目标槽位可启动。' : '按钮不可用：需要 Fastboot 设备在线。');
     setText('wipeHint', fastbootUsable ? '可用但高危：执行后数据无法恢复。' : '按钮不可用：需要 Fastboot 设备在线。');

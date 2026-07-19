@@ -21,9 +21,12 @@ from config import (
 )
 from core.device import (
     run_fastboot_command,
+    run_adb_command,
     get_fastboot_base_cmd,
     get_selected_fastboot_device,
     classify_fastboot_result,
+    check_devices,
+    check_adb_devices,
 )
 
 
@@ -200,17 +203,52 @@ def reboot_device(target: str = "") -> dict:
     重启设备
 
     Args:
-        target: 重启目标 (空=系统, recovery, bootloader)
+        target: 重启目标 (空=系统, recovery, bootloader, fastboot)
 
     Returns:
         结果字典
     """
-    if target:
-        args = ["reboot", target]
-    else:
-        args = ["reboot"]
+    # 根据当前设备模式选择命令工具
+    # 优先检查 fastboot 设备，再检查 ADB 设备
+    fb = check_devices()
+    adb = check_adb_devices()
 
-    return run_fastboot_command(args)
+    if fb.get("connected"):
+        # Fastboot 模式：fastboot reboot [target]
+        if target and target not in ("system", ""):
+            args = ["reboot", target]
+        else:
+            args = ["reboot"]
+        result = run_fastboot_command(args)
+    elif adb.get("connected"):
+        # ADB 模式：adb reboot [target]
+        # ADB 的 reboot 参数：空=系统, recovery, bootloader
+        # 注意：ADB 没有 "fastboot" 这个 target，需要用 "bootloader"
+        if target == "fastboot":
+            target = "bootloader"  # ADB 模式下用 reboot bootloader 进入 fastboot
+        if target and target != "system":
+            args = ["reboot", target]
+        else:
+            args = ["reboot"]
+        result = run_adb_command(args)
+        # ADB 重启通常返回码非0但命令已执行成功，需要特殊处理
+        if not result.get("success"):
+            combined = result.get("combined", "")
+            # ADB reboot 成功时设备会断开，可能返回 error，但命令实际已执行
+            if "error: device" in combined.lower() or "failed" in combined.lower():
+                # 真正的失败
+                pass
+            else:
+                # 设备断开导致的错误，视为成功
+                result["success"] = True
+                result["error"] = ""
+    else:
+        return {
+            "success": False,
+            "error": "未检测到设备连接，请先检测设备"
+        }
+
+    return result
 
 
 def erase_partition(partition: str) -> dict:

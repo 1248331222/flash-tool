@@ -33,17 +33,13 @@ Modules.register('app-init', ['ui', 'api', 'device'], async function initApp() {
         switchAppView(_savedView || 'device');
         await checkEnv();
 
+        // 同步后端状态到 FileApi
+        if (typeof FileApi !== 'undefined' && typeof backendReady !== 'undefined') {
+            FileApi.setBackendReady(backendReady);
+        }
+
         if (backendReady) {
             try {
-                // 并行加载，加快初始化速度
-                await Promise.all([
-                    loadProjectImages(),
-                    refreshRomList(),
-                    refreshExtractedRoms(),
-                    loadVbmetaRomList(),
-                ]);
-                updateResumeCard();
-                restoreBackendBatchTaskIfRunning();
                 // 后端模式下，自动恢复设备状态（无需用户手动点击检测设备）
                 if (appRunMode === 'backend') {
                     const checkBtn = $('checkDeviceBtn');
@@ -61,6 +57,14 @@ Modules.register('app-init', ['ui', 'api', 'device'], async function initApp() {
         writeLog('页面初始化错误：' + e.message, 'err');
     }
     loadVersion();
+
+    // 赞助弹窗：点击遮罩关闭
+    const sponsorModal = document.getElementById('sponsorModal');
+    if (sponsorModal) {
+        sponsorModal.addEventListener('click', (e) => {
+            if (e.target === sponsorModal) hideSponsorModal();
+        });
+    }
 });
 
 /**

@@ -227,38 +227,40 @@ async function copyLogForView(view = '') {
     const text = getLogBoxForView(view).innerText || '';
     try {
         await navigator.clipboard.writeText(text);
-        writeLog('日志已复制到剪贴板', 'ok');
+        if (typeof showToast === 'function') showToast('日志已复制到剪贴板');
     } catch(e) {
-        writeLog('复制日志失败：浏览器未授权剪贴板', 'err');
+        // 降级：选中日志框内容供用户手动复制
+        const box = getLogBoxForView(view);
+        const range = document.createRange();
+        range.selectNodeContents(box);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        if (typeof showToast === 'function') showToast('已选中日志内容，按 Ctrl+C 复制');
     }
 }
 
 function exportLogForView(view = '') {
     const box = getLogBoxForView(view);
     const viewName = view || getActiveViewName();
-    const saved = localStorage.getItem('batch_progress') || '';
     const meta = [
         `导出时间：${new Date().toLocaleString()}`,
         `日志页面：${viewName}`,
-        `运行模式：${appRunMode}`,
-        `线刷项目：${getSelectedRomProject ? (getSelectedRomProject() || '未选择') : '未知'}`,
-        `脚本：${document.getElementById('batSelect') ? (document.getElementById('batSelect').value || '未选择') : '未知'}`,
-        `步骤数：${stepList.length}`,
-        `设备代号：${getDeviceProduct()}`,
-        `Fastboot模式：${getFastbootModeLabel ? getFastbootModeLabel() : '未知'}`,
-        `槽位：${currentSlot || '未知'}`,
-        `Bootloader：${blStatusText}`,
-        `断点：${saved || '无'}`
+        `运行模式：${typeof appRunMode !== 'undefined' ? appRunMode : '未知'}`,
+        `步骤数：${typeof stepList !== 'undefined' ? stepList.length : 0}`,
+        `设备代号：${typeof getDeviceProduct === 'function' ? (getDeviceProduct() || '未知') : '未知'}`,
+        `Fastboot模式：${typeof getFastbootModeLabel === 'function' ? (getFastbootModeLabel() || '未知') : '未知'}`,
+        `槽位：${typeof currentSlot !== 'undefined' ? (currentSlot || '未知') : '未知'}`,
     ].join('\n');
     const text = `${meta}\n\n===== 运行日志 =====\n${box.innerText}`;
     const blob = new Blob([text], {type: 'text/plain'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `刷机日志_${viewName}_${new Date().toLocaleDateString().replace(/\//g,'-')}.txt`;
+    a.download = `刷机日志_${new Date().toLocaleDateString().replace(/\//g,'-')}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    writeLog('日志已导出到下载目录', 'ok');
+    if (typeof showToast === 'function') showToast('日志已导出');
 }
 
 // ============ 确认弹窗 ============
@@ -407,6 +409,82 @@ function setRunMode(mode) {
         const _ct2 = document.getElementById('commandTool'); if(_ct2) _ct2.value = 'adb';
     }
     updateBtnState();
+    updateBatchWebusbWarn();
+}
+
+/** WebUSB 模式下隐藏线刷内容、显示内存爆炸警告；后端模式恢复正常 */
+function updateBatchWebusbWarn() {
+    const warn = document.getElementById('batchWebusbWarn');
+    const content = document.getElementById('batchContentWrap');
+    if (!warn || !content) return;
+    const isWebusb = (typeof appRunMode !== 'undefined' && appRunMode === 'webusb');
+    warn.style.display = isWebusb ? '' : 'none';
+    content.style.display = isWebusb ? 'none' : '';
+}
+
+// ============ 赞助作者弹窗 ============
+function showSponsorModal() {
+    const modal = document.getElementById('sponsorModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideSponsorModal() {
+    const modal = document.getElementById('sponsorModal');
+    if (modal) modal.style.display = 'none';
+}
+
+/** 下载赞助二维码到本地 */
+async function sponsorDownloadQr() {
+    try {
+        const resp = await fetch('/static/img/sponsor_qrcode.png');
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '赞助作者_天树刷机.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        if (typeof showToast === 'function') showToast('二维码已保存到下载目录');
+    } catch(e) {
+        // 降级：直接打开图片链接
+        window.open('/static/img/sponsor_qrcode.png', '_blank');
+        if (typeof showToast === 'function') showToast('已在新窗口打开，长按图片可保存');
+    }
+}
+
+/** 分享赞助二维码（Web Share API，不支持则降级为下载） */
+async function sponsorShareQr() {
+    try {
+        if (navigator.share && navigator.canShare) {
+            const resp = await fetch('/static/img/sponsor_qrcode.png');
+            const blob = await resp.blob();
+            const file = new File([blob], '赞助作者_天树刷机.png', { type: blob.type });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: '赞助作者 - 天树刷机',
+                    text: '请作者喝瓶肥宅快乐水 🥤',
+                    files: [file]
+                });
+                return;
+            }
+        }
+        // 不支持文件分享，尝试文本分享
+        if (navigator.share) {
+            await navigator.share({
+                title: '赞助作者 - 天树刷机',
+                text: '请作者喝瓶肥宅快乐水 🥤'
+            });
+            return;
+        }
+        // 完全不支持分享，降级为下载
+        sponsorDownloadQr();
+    } catch(e) {
+        if (e.name !== 'AbortError') {
+            sponsorDownloadQr();
+        }
+    }
 }
 
 function updateModeFeatureState() {
@@ -463,6 +541,35 @@ function handleGlobalAction(e) {
         case 'switch-view':
             e.preventDefault();
             switchAppView(btn.dataset.view);
+            break;
+        case 'switch-to-workbench':
+            e.preventDefault();
+            switchAppView('workbench');
+            break;
+        case 'switch-to-backend':
+            e.preventDefault();
+            setRunMode('backend');
+            if (typeof showToast === 'function') showToast('已切换到后端模式');
+            break;
+        case 'show-sponsor':
+            e.preventDefault();
+            showSponsorModal();
+            break;
+        case 'close-sponsor':
+            e.preventDefault();
+            hideSponsorModal();
+            break;
+        case 'save-sponsor-qr':
+            e.preventDefault();
+            sponsorDownloadQr();
+            break;
+        case 'share-sponsor-qr':
+            e.preventDefault();
+            sponsorShareQr();
+            break;
+        case 'download-sponsor-qr':
+            e.preventDefault();
+            sponsorDownloadQr();
             break;
         case 'open-upload-dialog':
             e.preventDefault();
@@ -525,6 +632,28 @@ Modules.register('ui', [], function initUIModule() {
     // 日志按钮绑定
     $('clearLogBtn').onclick = () => clearLogForView('device');
     $('exportLogBtn').onclick = () => exportLogForView('device');
+    var copyLogBtn = $('copyLogBtn');
+    if (copyLogBtn) {
+        copyLogBtn.onclick = function() {
+            copyLogForView('device');
+            copyLogBtn.textContent = '已复制';
+            setTimeout(function() { copyLogBtn.textContent = '复制日志'; }, 1500);
+        };
+    }
+
+    // 全局日志弹窗
+    var logModal = $('logModal');
+    var logPopupBtn = $('logPopupBtn');
+    var logModalCloseBtn = $('logModalCloseBtn');
+    if (logPopupBtn && logModal) {
+        logPopupBtn.onclick = function() { logModal.style.display = 'flex'; };
+    }
+    if (logModalCloseBtn && logModal) {
+        logModalCloseBtn.onclick = function() { logModal.style.display = 'none'; };
+    }
+    if (logModal) {
+        logModal.addEventListener('click', function(e) { if (e.target === logModal) logModal.style.display = 'none'; });
+    }
 
     // document.body 级别通用事件委托
     document.body.addEventListener('click', handleGlobalAction);

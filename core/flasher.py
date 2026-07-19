@@ -49,6 +49,7 @@ from core.device import (
 
 def create_flash_task(partition: str, image_path: str,
                       extra_params: str = "",
+                      extra_before: str = "",
                       allow_dangerous: bool = False,
                       progress_callback: Optional[Callable] = None) -> dict:
     """
@@ -57,7 +58,8 @@ def create_flash_task(partition: str, image_path: str,
     Args:
         partition: 分区名
         image_path: 镜像路径
-        extra_params: 额外参数
+        extra_params: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
         allow_dangerous: 是否允许高危分区
         progress_callback: 进度回调
 
@@ -102,7 +104,7 @@ def create_flash_task(partition: str, image_path: str,
     # 启动后台线程
     threading.Thread(
         target=flash_worker,
-        args=(tid, partition, image_path, extra_params, progress_callback),
+        args=(tid, partition, image_path, extra_params, extra_before, progress_callback),
         daemon=True
     ).start()
 
@@ -117,6 +119,7 @@ def create_flash_task(partition: str, image_path: str,
 
 def flash_worker(task_id: str, partition: str, image_path: str,
                  extra_params: str = "",
+                 extra_before: str = "",
                  progress_callback: Optional[Callable] = None):
     """
     刷写任务工作函数
@@ -125,7 +128,8 @@ def flash_worker(task_id: str, partition: str, image_path: str,
         task_id: 任务ID
         partition: 分区名
         image_path: 镜像路径
-        extra_params: 额外参数
+        extra_params: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
         progress_callback: 进度回调
     """
     task = tasks[task_id]
@@ -149,7 +153,10 @@ def flash_worker(task_id: str, partition: str, image_path: str,
         log(f"开始刷写分区：{partition}（大小：{img_size_mb} MB）")
 
         # 构建命令
-        cmd = get_fastboot_base_cmd() + ["flash", partition, image_path]
+        cmd = get_fastboot_base_cmd()
+        if extra_before:
+            cmd += extra_before.strip().split()
+        cmd += ["flash", partition, image_path]
         if extra_params:
             cmd += extra_params.strip().split()
 
@@ -234,6 +241,7 @@ def flash_partition(partition: str, image_name: str,
                     source: str = "local",
                     rom_name: str = "",
                     extra: str = "",
+                    extra_before: str = "",
                     allow_dangerous: bool = False) -> dict:
     """
     刷写分区（API入口）
@@ -243,7 +251,8 @@ def flash_partition(partition: str, image_name: str,
         image_name: 镜像文件名
         source: 来源 (local/rom/public)
         rom_name: ROM包名（source=rom时需要）
-        extra: 额外参数
+        extra: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
         allow_dangerous: 是否允许高危分区
 
     Returns:
@@ -259,7 +268,7 @@ def flash_partition(partition: str, image_name: str,
         return {"success": False, "error": "镜像不存在"}
 
     # 创建任务
-    return create_flash_task(partition, image_path, extra, allow_dangerous)
+    return create_flash_task(partition, image_path, extra, extra_before, allow_dangerous)
 
 
 def batch_precheck(steps: list, source: str, rom_name: str = "") -> dict:
@@ -309,19 +318,24 @@ def batch_precheck(steps: list, source: str, rom_name: str = "") -> dict:
             })
 
         # 检查文件存在
-        try:
-            image_path = get_image_path(source, img_name, rom_name)
-            if not os.path.exists(image_path):
+        # 优先使用解析阶段已校验的 imagePath
+        image_path = step.get("imagePath") or ""
+        if image_path and os.path.exists(image_path):
+            pass  # 已确认存在
+        else:
+            try:
+                image_path = get_image_path(source, img_name, rom_name)
+                if not os.path.exists(image_path):
+                    missing.append({
+                        "stepName": f"{part} -> {img_name}",
+                        "fileName": img_name
+                    })
+            except (ValueError, FileNotFoundError) as e:
                 missing.append({
                     "stepName": f"{part} -> {img_name}",
-                    "fileName": img_name
+                    "fileName": img_name,
+                    "error": str(e)
                 })
-        except ValueError as e:
-            missing.append({
-                "stepName": f"{part} -> {img_name}",
-                "fileName": img_name,
-                "error": str(e)
-            })
 
     return {
         "success": len(missing) == 0,

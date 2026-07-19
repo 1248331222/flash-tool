@@ -7,12 +7,14 @@ async function checkEnv() {
         envStatusBaseText = '后端服务可用';
         document.getElementById('envTip').textContent = '点击「检测设备」检测并选择设备；如手机弹出 USB 调试 / OTG / Termux:API 等授权窗口，请点击「允许」。';
         App.set('backendReady', true);
+        if (typeof FileApi !== 'undefined') FileApi.setBackendReady(true);
     } catch(e) {
         envStatusBaseClass = 'env-status error';
         envStatusBaseText = '❌ 无法连接后端服务';
         App.set('realtimeConnected', false);
         writeLog('后端连接失败：' + e.message, 'err');
         App.set('backendReady', false);
+        if (typeof FileApi !== 'undefined') FileApi.setBackendReady(false);
     }
 }
 
@@ -339,6 +341,222 @@ Modules.register('device', ['ui'], function initDeviceModule() {
             }
         });
     };
+
+    // ===== 自定义命令/脚本执行 =====
+    function updateCustomCmdHint() {
+        var hint = document.getElementById('customCmdModeHint');
+        if (!hint) return;
+        if (appRunMode === 'webusb') {
+            hint.textContent = 'WebUSB · 仅支持 fastboot/adb 命令';
+            hint.style.color = 'var(--accent-orange,#ff9800)';
+        } else {
+            hint.textContent = '后端模式 · Termux 全功能（bash/fastboot/adb/pkg/termux-* 等）';
+            hint.style.color = 'var(--accent-green)';
+        }
+    }
+
+    // ===== 会话工作目录管理（cd 命令持久化） =====
+    // 生成或获取会话 ID（保存在 localStorage，同一浏览器标签页保持一致）
+    function _getCustomCmdSessionId() {
+        var key = 'custom_cmd_session_id';
+        var sid = localStorage.getItem(key);
+        if (!sid) {
+            sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            localStorage.setItem(key, sid);
+        }
+        return sid;
+    }
+
+    // 更新工作目录显示
+    function _updateCustomCmdCwdDisplay(cwd) {
+        var cwdEl = document.getElementById('customCmdCwd');
+        if (!cwdEl) return;
+        if (cwd) {
+            // 缩短显示（太长的目录用 ... 前缀）
+            var display = cwd;
+            if (cwd.length > 45) {
+                display = '...' + cwd.slice(-42);
+            }
+            cwdEl.textContent = display;
+            cwdEl.title = cwd;
+            cwdEl.style.display = '';
+        } else {
+            cwdEl.style.display = 'none';
+        }
+    }
+
+    // 初始化时获取当前工作目录
+    async function _initCustomCmdCwd() {
+        try {
+            var res = await apiGet('/api/shell/cwd?session_id=' + encodeURIComponent(_getCustomCmdSessionId()));
+            if (res && res.cwd) {
+                _updateCustomCmdCwdDisplay(res.cwd);
+            }
+        } catch(e) { /* 忽略 */ }
+    }
+
+    // 解析命令，判断类型
+    function _parseCmdType(cmd) {
+        var trimmed = cmd.trim();
+        var lower = trimmed.toLowerCase();
+        if (lower.startsWith('fastboot ')) {
+            return { type: 'fastboot', args: trimmed.slice(9).trim().split(/\s+/) };
+        }
+        if (lower === 'fastboot') {
+            return { type: 'fastboot', args: [] };
+        }
+        if (lower.startsWith('adb ')) {
+            return { type: 'adb', args: trimmed.slice(4).trim().split(/\s+/) };
+        }
+        if (lower === 'adb') {
+            return { type: 'adb', args: [] };
+        }
+        return { type: 'shell', args: trimmed };
+    }
+
+    function _formatOutput(timestamp, cmd, success, output, extraInfo) {
+        var html = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n';
+        if (success) {
+            if (output) html += '<span style="color:var(--accent-green);">' + escHtml(output) + '</span>';
+            else html += '<span style="color:var(--text-muted);">命令执行完成（无输出）</span>';
+        } else {
+            if (output) html += '<span style="color:var(--accent-orange,#ff9800);">' + escHtml(output) + '</span>';
+            html += '\n<span style="color:var(--accent-red,#ef4444);">执行失败</span>';
+        }
+        if (extraInfo) html += '\n<span style="color:var(--text-muted);">' + escHtml(extraInfo) + '</span>';
+        return html;
+    }
+
+    async function runCustomCmd() {
+        var input = document.getElementById('customCmdInput');
+        var output = document.getElementById('customCmdOutput');
+        var btn = document.getElementById('customCmdRunBtn');
+        if (!input || !output || !btn) return;
+
+        var cmd = input.value.trim();
+        if (!cmd) {
+            output.innerHTML = '<span style="color:var(--accent-orange,#ff9800);">请输入命令</span>';
+            return;
+        }
+
+        var parsed = _parseCmdType(cmd);
+        var timestamp = new Date().toLocaleTimeString();
+        btn.disabled = true;
+        btn.textContent = '执行中...';
+        output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n<span style="color:var(--text-muted);">执行中...</span>';
+
+        try {
+            if (appRunMode === 'webusb') {
+                // WebUSB 模式：只支持 fastboot/adb 纯命令
+                if (parsed.type === 'fastboot') {
+                    // fastboot flash 命令需要文件读取，WebUSB 无法直接获取本地文件
+                    if (parsed.args[0] === 'flash') {
+                        output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n' +
+                            '<span style="color:var(--accent-orange,#ff9800);">⚠️ WebUSB 模式下 fastboot flash 命令需要读取本地镜像文件，请使用「线刷」或「工作台」页面进行刷写。\n' +
+                            '其他 fastboot 命令（如 getvar、erase、reboot、oem 等）可以直接在此执行。</span>';
+                    } else if (!webusbFastbootReady || !webusbFastboot) {
+                        output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n' +
+                            '<span style="color:var(--accent-red,#ef4444);">⚠️ WebUSB Fastboot 未连接，请先在设备页面检测并连接 Fastboot 设备。</span>';
+                    } else {
+                        var fbResult = await webusbFastboot.fastbootCommand(parsed.args.join(' '));
+                        output.innerHTML = _formatOutput(timestamp, cmd, true, String(fbResult || 'OKAY'));
+                    }
+                } else if (parsed.type === 'adb') {
+                    if (!webusbAdbReady || !webusbAdb) {
+                        output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n' +
+                            '<span style="color:var(--accent-red,#ef4444);">⚠️ WebUSB ADB 未连接，请先在设备页面检测并连接 ADB 设备。</span>';
+                    } else {
+                        var adbResult = await webusbAdb.adbCommand(parsed.args.join(' '));
+                        output.innerHTML = _formatOutput(timestamp, cmd, true, String(adbResult || ''));
+                    }
+                } else {
+                    // 非 fastboot/adb 命令，WebUSB 不支持
+                    output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n' +
+                        '<span style="color:var(--accent-orange,#ff9800);">⚠️ WebUSB 模式仅支持 fastboot 和 adb 纯命令。\n' +
+                        'Termux 命令（如 ls、termux-usb、pkg 等）需要后端环境，请切换到「后端模式」。\n\n' +
+                        '后端模式支持的命令示例：\n' +
+                        '• termux-usb -l（列出 USB 设备）\n' +
+                        '• termux-battery-status（电池状态）\n' +
+                        '• pkg list-installed（已安装包）\n' +
+                        '• am start -a android.intent.action.VIEW\n' +
+                        '• ls -la /sdcard/\n\n' +
+                        'WebUSB 模式可执行的命令：\n' +
+                        '• fastboot getvar all\n' +
+                        '• fastboot erase userdata\n' +
+                        '• adb shell ls /sdcard\n' +
+                        '• adb reboot recovery</span>';
+                }
+            } else {
+                // 后端模式
+                if (parsed.type === 'fastboot') {
+                    // fastboot 命令走专用 API（使用项目内部 fastboot 二进制）
+                    // flash 命令给更长的超时（1800秒）
+                    var fbTimeout = parsed.args[0] === 'flash' ? 1800 : 300;
+                    var fbRes = await apiPost('/api/fastboot', { args: parsed.args, timeout: fbTimeout });
+                    var fbOutput = fbRes.combined || fbRes.output || '';
+                    if (fbRes.error && fbRes.error !== fbOutput) fbOutput += '\n' + fbRes.error;
+                    output.innerHTML = _formatOutput(timestamp, cmd, fbRes.success, fbOutput);
+                } else if (parsed.type === 'adb') {
+                    // adb 命令走专用 API（使用项目内部 adb 二进制）
+                    var adbRes = await apiPost('/api/adb', { args: parsed.args });
+                    var adbOutput = adbRes.output || '';
+                    if (adbRes.error && adbRes.error !== adbOutput) adbOutput += '\n' + adbRes.error;
+                    output.innerHTML = _formatOutput(timestamp, cmd, adbRes.success, adbOutput);
+                } else {
+                    // 其他命令走 bash（支持管道、重定向、多行脚本）
+                    // 发送 session_id 以保持工作目录（cd 命令持久化）
+                    var shellRes = await apiPost('/api/shell/run', {
+                        command: cmd,
+                        timeout: 300,
+                        session_id: _getCustomCmdSessionId()
+                    });
+                    var shellOutput = shellRes.combined || shellRes.stdout || '';
+                    // 更新工作目录显示
+                    if (shellRes.cwd) _updateCustomCmdCwdDisplay(shellRes.cwd);
+                    var html = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n';
+                    if (shellRes.success) {
+                        if (shellOutput) html += '<span style="color:var(--accent-green);">' + escHtml(shellOutput) + '</span>';
+                        else {
+                            // cd 命令成功时显示新工作目录
+                            if (shellRes.cwd && cmd.trim().startsWith('cd')) {
+                                html += '<span style="color:var(--accent-blue);">📁 工作目录: ' + escHtml(shellRes.cwd) + '</span>';
+                            } else {
+                                html += '<span style="color:var(--text-muted);">命令执行完成（无输出）</span>';
+                            }
+                        }
+                        if (shellRes.returncode !== undefined) html += '\n<span style="color:var(--text-muted);">退出码: ' + shellRes.returncode + '</span>';
+                    } else {
+                        if (shellOutput) html += '<span style="color:var(--accent-orange,#ff9800);">' + escHtml(shellOutput) + '</span>';
+                        html += '\n<span style="color:var(--accent-red,#ef4444);">执行失败' + (shellRes.returncode !== undefined ? '（退出码: ' + shellRes.returncode + '）' : '') + '</span>';
+                    }
+                    output.innerHTML = html;
+                }
+            }
+            output.scrollTop = output.scrollHeight;
+        } catch(e) {
+            output.innerHTML = '<span style="color:var(--text-muted);">[' + timestamp + '] 执行: ' + escHtml(cmd) + '</span>\n<span style="color:var(--accent-red,#ef4444);">执行异常: ' + escHtml(e.message) + '</span>';
+        }
+
+        btn.disabled = false;
+        btn.textContent = '执行';
+    }
+
+    if ($('customCmdRunBtn')) {
+        $('customCmdRunBtn').onclick = runCustomCmd;
+    }
+    if ($('customCmdInput')) {
+        $('customCmdInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runCustomCmd();
+            }
+        });
+    }
+    updateCustomCmdHint();
+    // 定期更新模式提示（响应用户切换模式）
+    setInterval(updateCustomCmdHint, 2000);
+    // 初始化工作目录显示（后端模式才需要）
+    _initCustomCmdCwd();
 
     console.log('[device] 设备模块已初始化');
     return true;

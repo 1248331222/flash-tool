@@ -1,5 +1,5 @@
 # Skytree Flasher / routes/api_upload.py
-# 脚本上传模块 - WebDAV 上传到 OpenList / 天树引擎预解析
+# 脚本上传模块 - WebDAV 上传到 OpenList
 # 纯标准库实现，无额外依赖
 
 import os, re, json, time, hashlib, random, base64
@@ -13,7 +13,6 @@ from config import (
     UPLOAD_WEBDAV_TIMEOUT_SHORT, UPLOAD_WEBDAV_TIMEOUT_LONG,
     UPLOAD_PREVIEW_MAX_CHARS, logger
 )
-from core.hydra import HydraEngine
 
 upload_bp = Blueprint('upload', __name__, url_prefix='/api/script')
 
@@ -78,45 +77,6 @@ def _security_scan(content: str) -> list:
     return findings
 
 
-def _preview_script(content: str, filename: str) -> dict:
-    """调用天树引擎预解析脚本"""
-    try:
-        # 判断脚本类型
-        ext = os.path.splitext(filename)[1].lower()
-        script_type = 'sh' if ext in ('.sh',) else 'bat'
-
-        engine = HydraEngine()
-        result = engine.parse(content, script_type=script_type, script_path=filename)
-        if result is None:
-            return {"is_simple": False, "step_count": 0, "parse_errors": ["解析返回空"],
-                    "script_type": "unknown", "engine_status": "unsupported"}
-
-        # engine_status: "supported" / "unsupported" / "partial"
-        if result.total_steps > 0 and not result.warnings:
-            engine_status = "supported"
-        elif result.total_steps > 0 and result.warnings:
-            engine_status = "partial"
-        else:
-            engine_status = "unsupported"
-
-        return {
-            "is_simple": result.is_simple,
-            "step_count": result.total_steps or len(result.steps),
-            "parse_errors": result.warnings,
-            "script_type": result.script_type,
-            "engine_status": engine_status,
-        }
-    except Exception as e:
-        logger.warning(f"天树引擎预解析失败: {e}")
-        return {
-            "is_simple": False,
-            "step_count": 0,
-            "parse_errors": [str(e)],
-            "script_type": "unknown",
-            "engine_status": "unsupported",
-        }
-
-
 def _upload_via_webdav(file_path: str, remote_name: str) -> bool:
     """通过 WebDAV PUT 上传文件到 OpenList（纯标准库实现）"""
     url = WEBDAV_URL.rstrip('/') + '/' + remote_name
@@ -157,14 +117,14 @@ def upload_script():
     # 1. 检查文件
     if 'file' not in request.files:
         return jsonify({"success": False, "error_code": "NO_FILE", "message": "未选择文件"})
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({"success": False, "error_code": "NO_FILE", "message": "文件名为空"})
 
     original_name = file.filename
     ext = os.path.splitext(original_name)[1].lower()
-    
+
     # 2. 检查扩展名
     if ext not in ALLOWED_EXTENSIONS:
         return jsonify({
@@ -199,18 +159,14 @@ def upload_script():
     # 6. 获取可选参数
     brand = request.form.get('brand', '').strip()
     device_model = request.form.get('device_model', '').strip()
-    do_preview = request.form.get('hydra_preview', 'true').lower() == 'true'
 
-    # 7. 天树引擎预解析
-    hydra_result = _preview_script(content, original_name) if do_preview else {}
-
-    # 8. 保存本地 + 上传 OpenList
+    # 7. 保存本地 + 上传 OpenList
     safe_name = _sanitize_filename(original_name)
     local_path = os.path.join(UPLOAD_DIR, safe_name)
-    
+
     # 确保本地目录存在
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    
+
     # 写本地文件
     with open(local_path, 'w', encoding='utf-8') as f:
         f.write(content)
@@ -218,7 +174,7 @@ def upload_script():
     # 上传到 OpenList
     upload_ok = _upload_via_webdav(local_path, safe_name)
 
-    # 9. 更新元数据
+    # 8. 更新元数据
     meta_path = os.path.join(UPLOAD_DIR, 'metadata.json')
     metadata = {}
     if os.path.exists(meta_path):
@@ -236,7 +192,6 @@ def upload_script():
         "brand": brand,
         "device_model": device_model,
         "encoding": encoding,
-        "hydra_result": hydra_result,
         "uploaded_to_openlist": upload_ok,
         "expire_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + 86400 * 10)),
     }
@@ -247,28 +202,7 @@ def upload_script():
         "success": True,
         "file_id": safe_name,
         "message": "上传成功" + ("，已同步到样本库" if upload_ok else "（本地保存）"),
-        "hydra_result": hydra_result,
         "uploaded_to_openlist": upload_ok,
-    })
-
-
-@upload_bp.route('/preview', methods=['POST'])
-def preview_script():
-    """预览脚本内容（不保存）"""
-    data = request.get_json(silent=True) or {}
-    content = data.get('content', '')
-    filename = data.get('filename', 'script.bat')
-    
-    if not content:
-        return jsonify({"success": False, "error": "内容为空"})
-    
-    hydra_result = _preview_script(content, filename)
-    
-    return jsonify({
-        "success": True,
-        "preview_lines": content.split('\n')[:20],
-        "total_lines": len(content.split('\n')),
-        "hydra_result": hydra_result,
     })
 
 
@@ -278,23 +212,16 @@ def list_uploads():
     meta_path = os.path.join(UPLOAD_DIR, 'metadata.json')
     if not os.path.exists(meta_path):
         return jsonify({"success": True, "files": []})
-    
+
     try:
         with open(meta_path, 'r', encoding='utf-8') as f:
             metadata = json.load(f)
     except:
         return jsonify({"success": True, "files": []})
-    
+
     files = []
     for file_id, info in metadata.items():
-        hydra_result = info.get("hydra_result", {})
         original_name = info.get("original_name", file_id)
-        # 优先按文件名前缀判定，其次取元数据
-        prefix_status = _filename_engine_status(file_id)
-        if prefix_status != 'unknown':
-            engine_status = prefix_status
-        else:
-            engine_status = hydra_result.get("engine_status", "unknown")
         files.append({
             "file_id": file_id,
             "original_name": original_name,
@@ -302,10 +229,8 @@ def list_uploads():
             "script_type": info.get("script_type", ""),
             "brand": info.get("brand", ""),
             "device_model": info.get("device_model", ""),
-            "step_count": hydra_result.get("step_count", 0),
-            "engine_status": engine_status,
         })
-    
+
     files.sort(key=lambda x: x.get("upload_time", ""), reverse=True)
     return jsonify({"success": True, "files": files})
 
@@ -316,11 +241,11 @@ def delete_upload(file_id):
     # 安全检查
     if '..' in file_id or '/' in file_id or '\\' in file_id:
         return jsonify({"success": False, "error": "无效的文件名"})
-    
+
     local_path = os.path.join(UPLOAD_DIR, file_id)
     local_deleted = False
     remote_deleted = False
-    
+
     # 删除本地文件
     if os.path.exists(local_path):
         try:
@@ -328,10 +253,10 @@ def delete_upload(file_id):
             local_deleted = True
         except Exception as e:
             logger.error(f"删除本地文件失败: {e}")
-    
+
     # 删除 WebDAV 远端文件
     remote_deleted = _openlist_delete(file_id)
-    
+
     # 更新 metadata.json
     meta_path = os.path.join(UPLOAD_DIR, 'metadata.json')
     if os.path.exists(meta_path):
@@ -343,7 +268,7 @@ def delete_upload(file_id):
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
         except:
             pass
-    
+
     return jsonify({
         "success": True,
         "message": "已删除",
@@ -359,13 +284,12 @@ def view_script(file_id):
     # 安全检查：防止路径遍历
     if '..' in file_id or '/' in file_id or '\\' in file_id:
         return jsonify({"success": False, "error": "无效的文件名"})
-    
+
     local_path = os.path.join(UPLOAD_DIR, file_id)
-    
+
     # 文件内容
     content = None
-    meta_info = {}
-    
+
     # 先读本地
     if os.path.exists(local_path):
         try:
@@ -374,10 +298,9 @@ def view_script(file_id):
         except UnicodeDecodeError:
             with open(local_path, 'rb') as f:
                 content = f.read().decode('utf-8', errors='replace')
-    
+
     # 本地没有 → 从 WebDAV 多路径尝试拉取
     if content is None:
-        from config import WEBDAV_URL, WEBDAV_USER, WEBDAV_PASS
         import urllib.request, base64
         candidates = [
             WEBDAV_URL.rstrip('/') + '/' + file_id,
@@ -387,11 +310,11 @@ def view_script(file_id):
         last_err = ''
         for wd_url in candidates:
             try:
-                req = urllib.request.Request(wd_url)
+                req = urllib_request.Request(wd_url)
                 if '/sd/' not in wd_url:
                     auth = base64.b64encode(f"{WEBDAV_USER}:{WEBDAV_PASS}".encode()).decode()
                     req.add_header('Authorization', f'Basic {auth}')
-                with urllib.request.urlopen(req, timeout=UPLOAD_WEBDAV_TIMEOUT_SHORT) as resp:
+                with urllib_request.urlopen(req, timeout=UPLOAD_WEBDAV_TIMEOUT_SHORT) as resp:
                     raw = resp.read()
                     if raw:
                         try:
@@ -411,21 +334,16 @@ def view_script(file_id):
     max_chars = UPLOAD_PREVIEW_MAX_CHARS
     if len(content) > max_chars:
         content = content[:max_chars] + f"\n\n...（文件过大，仅显示前 {max_chars} 字符）"
-    
+
     return jsonify({
         "success": True,
         "file_id": file_id,
-        "original_name": meta_info.get("original_name", ""),
-        "upload_time": meta_info.get("upload_time", ""),
-        "brand": meta_info.get("brand", ""),
-        "device_model": meta_info.get("device_model", ""),
-        "step_count": meta_info.get("hydra_result", {}).get("step_count", 0),
         "content": content,
     })
 
 
 # ============================================================
-# WebDAV 工具函数（标注闭环用）
+# WebDAV 工具函数
 # ============================================================
 
 def _webdav_auth_header():
@@ -523,216 +441,3 @@ def _openlist_delete(remote_name):
     except Exception as e:
         logger.error(f"DELETE {remote_name} 异常: {e}")
         return False
-
-
-def _label_log_path():
-    return os.path.join(UPLOAD_DIR, 'label_log.json')
-
-
-def _append_label_log(entry: dict):
-    log_path = _label_log_path()
-    logs = []
-    if os.path.exists(log_path):
-        try:
-            with open(log_path, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-        except:
-            logs = []
-    logs.append(entry)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, 'w', encoding='utf-8') as f:
-        json.dump(logs, f, ensure_ascii=False, indent=2)
-
-
-def _filename_engine_status(name: str) -> str:
-    """从文件名前缀判定引擎状态：supported / unsupported / unknown"""
-    if name.startswith('yes_'):
-        return 'supported'
-    elif name.startswith('no_'):
-        return 'unsupported'
-    return 'unknown'
-
-
-def _add_prefix(name: str, prefix: str) -> str:
-    """加前缀，避免重复。prefix: yes_ 或 no_"""
-    if name.startswith('yes_') or name.startswith('no_'):
-        return name
-    return prefix + name
-
-
-# ============================================================
-# 标注路由
-# ============================================================
-
-@upload_bp.route('/label', methods=['POST'])
-@_admin_required
-def label_samples():
-    """
-    触发全量标注：
-    1. 从 OpenList PROPFIND 列出所有无 yes_/no_ 前缀的脚本
-    2. 逐文件下载 → 天树引擎解析 → 判定 → MOVE 重命名
-    """
-    temp_dir = os.path.join(UPLOAD_DIR, '_label_tmp')
-    os.makedirs(temp_dir, exist_ok=True)
-
-    # 1. 拉取列表
-    all_names = _openlist_list_files()
-    logger.info(f"PROPFIND 返回 {len(all_names)} 个文件")
-
-    # 2. 筛选待判定（无 yes_/no_ 前缀、扩展名符合）
-    TARGET_EXTS = {'.bat', '.cmd', '.sh', '.txt'}
-    pending = []
-    for name in all_names:
-        ext = os.path.splitext(name)[1].lower()
-        if ext not in TARGET_EXTS:
-            continue
-        if name.startswith('yes_') or name.startswith('no_'):
-            continue
-        pending.append(name)
-
-    logger.info(f"待判定: {len(pending)} 个文件")
-
-    # 3. 逐文件下载 → 解析 → 改名
-    results = []
-    for remote_name in pending:
-        local_path = os.path.join(temp_dir, remote_name)
-        if not _openlist_download(remote_name, local_path):
-            results.append({"name": remote_name, "status": "download_failed"})
-            continue
-
-        # 读取内容
-        try:
-            with open(local_path, 'rb') as f:
-                raw = f.read()
-            content = raw.decode('utf-8', errors='ignore')
-        except Exception as e:
-            results.append({"name": remote_name, "status": "read_failed", "error": str(e)})
-            continue
-
-        # 天树引擎解析
-        hydra = _preview_script(content, remote_name)
-        total_steps = hydra.get("step_count", 0)
-        prefix = "yes_" if total_steps > 0 else "no_"
-        new_name = _add_prefix(remote_name, prefix)
-
-        # MOVE 重命名
-        if _openlist_rename(remote_name, new_name):
-            _append_label_log({
-                "time": time.strftime('%Y-%m-%d %H:%M:%S'),
-                "old_name": remote_name,
-                "new_name": new_name,
-                "step_count": total_steps,
-                "result": prefix.replace('_', ''),
-            })
-            results.append({
-                "name": remote_name, "new_name": new_name,
-                "step_count": total_steps, "status": "ok",
-            })
-        else:
-            results.append({"name": remote_name, "status": "rename_failed"})
-
-        # 清理临时文件
-        try:
-            os.remove(local_path)
-        except:
-            pass
-
-    # 统计
-    ok = sum(1 for r in results if r.get("status") == "ok")
-    fail = len(results) - ok
-
-    return jsonify({
-        "success": True,
-        "message": f"标注完成：{ok} 成功, {fail} 失败 (共 {len(results)} 个)",
-        "total": len(results),
-        "ok": ok,
-        "fail": fail,
-        "details": results,
-    })
-
-
-@upload_bp.route('/relabel', methods=['POST'])
-@_admin_required
-def relabel_samples():
-    """
-    重新判定所有 no_ 前缀的文件（引擎升级后可能翻转）。
-    流程同 label，但只处理 no_ 前缀。
-    """
-    temp_dir = os.path.join(UPLOAD_DIR, '_label_tmp')
-    os.makedirs(temp_dir, exist_ok=True)
-
-    all_names = _openlist_list_files()
-    TARGET_EXTS = {'.bat', '.cmd', '.sh', '.txt'}
-
-    pending = []
-    for name in all_names:
-        ext = os.path.splitext(name)[1].lower()
-        if ext not in TARGET_EXTS:
-            continue
-        if not name.startswith('no_'):
-            continue
-        pending.append(name)
-
-    logger.info(f"重新判定: {len(pending)} 个 no_ 文件")
-
-    results = []
-    flipped = 0
-    for remote_name in pending:
-        local_path = os.path.join(temp_dir, remote_name)
-        if not _openlist_download(remote_name, local_path):
-            results.append({"name": remote_name, "status": "download_failed"})
-            continue
-
-        try:
-            with open(local_path, 'rb') as f:
-                raw = f.read()
-            content = raw.decode('utf-8', errors='ignore')
-        except Exception as e:
-            results.append({"name": remote_name, "status": "read_failed", "error": str(e)})
-            continue
-
-        hydra = _preview_script(content, remote_name)
-        total_steps = hydra.get("step_count", 0)
-
-        if total_steps > 0:
-            # 翻转 no_ → yes_
-            new_name = 'yes_' + remote_name[3:]  # 去掉 no_ 前缀
-            if _openlist_rename(remote_name, new_name):
-                flipped += 1
-                _append_label_log({
-                    "time": time.strftime('%Y-%m-%d %H:%M:%S'),
-                    "old_name": remote_name,
-                    "new_name": new_name,
-                    "step_count": total_steps,
-                    "result": "flipped",
-                })
-                results.append({
-                    "name": remote_name, "new_name": new_name,
-                    "step_count": total_steps, "status": "flipped",
-                })
-            else:
-                results.append({"name": remote_name, "status": "rename_failed"})
-        else:
-            # 仍不支持，保持 no_
-            results.append({
-                "name": remote_name, "step_count": total_steps,
-                "status": "unchanged",
-            })
-
-        try:
-            os.remove(local_path)
-        except:
-            pass
-
-    unchanged = sum(1 for r in results if r.get("status") == "unchanged")
-    fail = sum(1 for r in results if r.get("status") in ("download_failed", "read_failed", "rename_failed"))
-
-    return jsonify({
-        "success": True,
-        "message": f"重新判定完成：{flipped} 翻转, {unchanged} 保持, {fail} 失败",
-        "total": len(results),
-        "flipped": flipped,
-        "unchanged": unchanged,
-        "fail": fail,
-        "details": results,
-    })

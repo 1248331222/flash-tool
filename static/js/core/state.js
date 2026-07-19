@@ -246,12 +246,8 @@ Object.defineProperty(window, 'BACKEND_API_URL', {
 });
 
 // ============ 工作台状态变量 ============
-let wbSteps = [];
-let wbExecuting = false;
-let wbDetectedPartitions = [];
-
-// 步骤类型切换（按钮模式）
-let wbCurrentType = 'fastboot';
+// 工作台已精简（v3.3.0），仅保留 Fastboot 快捷命令功能，无需全局状态变量
+// 后续重构时会重新添加需要的状态变量
 
 // ============ 线刷批量任务状态变量 ============
 let batchRunning = false;

@@ -45,11 +45,38 @@ function switchAppView(view) {
     if (view === 'version' && typeof loadVersion === 'function') {
         loadVersion();
     }
+    if (view === 'batch' && typeof updateBatchWebusbWarn === 'function') {
+        updateBatchWebusbWarn();
+    }
 }
 
 /** Promise 版延时 */
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ============ 断点续跑（不依赖 WebUSB，定义在公共模块） ============
+function saveBackendReconnectCheckpoint(nextIndex, reason) {
+    reason = reason || '';
+    var progress = localStorage.getItem('batch_progress');
+    if (progress) {
+        try {
+            var data = JSON.parse(progress);
+            data.step_index = nextIndex;
+            data.reconnect_reason = reason;
+            data.saved_at = Date.now();
+            localStorage.setItem('batch_progress', JSON.stringify(data));
+        } catch(e) {}
+    }
+    localStorage.setItem('batch_waiting_reconnect', '1');
+}
+
+function clearReconnectCheckpoint() {
+    localStorage.removeItem('batch_waiting_reconnect');
+}
+
+function shouldAutoResumeAfterReconnect() {
+    return localStorage.getItem('batch_waiting_reconnect') === '1' && localStorage.getItem('batch_progress');
 }
 
 /** 格式化命令执行结果，合并 logs/message/output/error/diagnosis */
