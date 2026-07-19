@@ -1,476 +1,199 @@
-# -*- coding: utf-8 -*-
-# Skytree Flasher / core/extractor.py
-"""
-core/extractor.py — ROM 包解压任务管理
-从单文件版提取，函数逻辑保持不变。
-
-tasks 字典为本模块全局共享，其他模块通过 import 使用。
-emit_task_progress 通过延迟导入避免与 routes.socketio 的循环依赖。
-"""
-
-import os
-import re
-import json
-import time
-import uuid
-import shutil
-import zipfile
-import tarfile
-import threading
-import subprocess
-from typing import Callable, Optional
-
-from config import (
-    TASK_STATE_FILE,
-    ROM_DIR,
-    PUBLIC_DIR,
-    SUPPORTED_ROM_SUFFIXES,
-    TASK_LOG_LIMIT,
-    EXTRACT_PROC_TIMEOUT,
-    logger,
-)
-from core.utils import (
-    sanitize_path,
-    validate_rom_filename,
-    get_rom_base_name,
-    diagnose_error,
-)
-
-
-# ======================================================================
-# 模块: services/extractor.py
-# ======================================================================
-
-# 任务存储（全局共享，其他模块 import 本字典）
-tasks = {}
-_tasks_lock = threading.Lock()  # #23: 保护 tasks 并发访问
-
-
-def _load_tasks():
-    """加载最近任务状态，运行中的旧任务标记为已中断"""
-    if not os.path.exists(TASK_STATE_FILE):
-        return {}
-    try:
-        with open(TASK_STATE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return {}
-        for t in data.values():
-            if t.get("status") in ("pending", "running"):
-                t["status"] = "interrupted"
-                t["error"] = t.get("error") or "服务重启或任务中断"
-        return data
-    except Exception as e:
-        logger.warning(f"加载任务状态失败: {e}")
-        return {}
-
-
-def persist_tasks():
-    """持久化任务状态，减少页面刷新或服务重启后的信息丢失"""
-    try:
-        task_dir = os.path.dirname(TASK_STATE_FILE)
-        if task_dir:
-            os.makedirs(task_dir, exist_ok=True)
-        slim = {}
-        for tid, task in list(tasks.items())[-80:]:
-            t = dict(task)
-            t["logs"] = (t.get("logs") or [])[-TASK_LOG_LIMIT:]
-            slim[tid] = t
-        tmp = TASK_STATE_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(slim, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, TASK_STATE_FILE)
-    except Exception as e:
-        logger.debug(f"持久化任务状态失败: {e}")
-
-
-tasks.update(_load_tasks())
-
-
-def gen_task_id() -> str:
-    """生成任务ID"""
-    return str(uuid.uuid4())[:8]
-
-
-def create_extract_task(src_path: str, target_dir: str) -> str:
-    """
-    创建解压任务
-
-    Args:
-        src_path: 源文件路径
-        target_dir: 目标目录
-
-    Returns:
-        任务ID
-    """
-    # 延迟导入，避免与 routes.socketio 循环依赖
-    from routes.socketio import emit_task_progress
-
-    tid = gen_task_id()
-    tasks[tid] = {
-        "type": "extract",
-        "status": "pending",
-        "progress": 0,
-        "logs": [],
-        "error": "",
-        "created_at": time.time(),
-        "updated_at": time.time(),
-        "src_path": src_path,
-        "target_dir": target_dir
-    }
-    persist_tasks()
-
-    # 启动后台线程
-    threading.Thread(
-        target=extract_worker,
-        args=(tid, src_path, target_dir),
-        kwargs={"progress_callback": lambda p, m: emit_task_progress(tid, p, m)},
-        daemon=True
-    ).start()
-
-    logger.info(f"创建解压任务: {tid}, 源: {src_path}")
-    return tid
-
-
-def extract_worker(task_id: str, src_path: str, target_dir: str,
-                   progress_callback: Optional[Callable] = None):
-    """
-    解压任务工作函数
-
-    Args:
-        task_id: 任务ID
-        src_path: 源文件路径
-        target_dir: 目标目录
-        progress_callback: 进度回调函数 (progress, message)
-    """
-    task = tasks[task_id]
-    task["status"] = "running"
-    task["updated_at"] = time.time()
-    persist_tasks()
-
-    def log(msg: str):
-        task["logs"].append(msg)
-        task["logs"] = task["logs"][-TASK_LOG_LIMIT:]
-        task["updated_at"] = time.time()
-        logger.info(f"[{task_id}] {msg}")
-        persist_tasks()
-        if progress_callback:
-            progress_callback(task["progress"], msg)
-
-    try:
-        name_lower = os.path.basename(src_path).lower()
-        tmp_dir = f"{target_dir}.extracting-{task_id}"
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        os.makedirs(tmp_dir, exist_ok=True)
-        log(f"开始解压：{os.path.basename(src_path)}")
-
-        # ZIP 文件
-        if name_lower.endswith('.zip'):
-            extract_zip(src_path, tmp_dir, task, log, progress_callback)
-
-        # TAR 文件（包括 .tar.gz, .tar.bz2 等）
-        elif name_lower.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.md5')):
-            extract_tar(src_path, tmp_dir, task, log, progress_callback)
-
-        # 7z 文件
-        elif name_lower.endswith('.7z'):
-            extract_7z(src_path, tmp_dir, task, log, progress_callback)
-
-        # RAR 文件
-        elif name_lower.endswith('.rar'):
-            extract_rar(src_path, tmp_dir, task, log, progress_callback)
-
-        else:
-            raise Exception("不支持的压缩格式")
-
-        validate_extracted_tree(tmp_dir)
-        if os.path.exists(target_dir):
-            shutil.rmtree(target_dir)
-        os.replace(tmp_dir, target_dir)
-
-        task["status"] = "success"
-        task["progress"] = 100
-        task["updated_at"] = time.time()
-        log("解压完成")
-        persist_tasks()
-
-    except Exception as e:
-        task["status"] = "error"
-        task["error"] = str(e)
-        task["diagnosis"] = diagnose_error(str(e))
-        task["updated_at"] = time.time()
-        log(f"解压失败：{str(e)}")
-        logger.error(f"[{task_id}] 解压失败: {e}")
-        try:
-            tmp_dir = f"{target_dir}.extracting-{task_id}"
-            if os.path.exists(tmp_dir):
-                shutil.rmtree(tmp_dir)
-        except Exception:
-            pass
-        persist_tasks()
-
-
-def extract_zip(src_path: str, target_dir: str, task: dict,
-                log: Callable, progress_callback: Optional[Callable] = None):
-    """解压 ZIP 文件"""
-    with zipfile.ZipFile(src_path, 'r') as zf:
-        members = zf.infolist()
-        total = len(members)
-
-        for i, member in enumerate(members):
-            # 处理中文文件名
-            try:
-                member_name = member.filename.encode('cp437').decode('gbk')
-            except:
-                member_name = member.filename
-
-            target_path = safe_member_path(target_dir, member_name)
-            mode = (member.external_attr >> 16) & 0o170000
-            if mode == 0o120000:
-                raise Exception(f"ZIP包含符号链接，已阻止：{member_name}")
-
-            if member.is_dir():
-                os.makedirs(target_path, exist_ok=True)
-            else:
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                with zf.open(member) as src, open(target_path, 'wb') as dst:
-                    shutil.copyfileobj(src, dst)
-
-            # 更新进度
-            progress = int((i + 1) / total * 100)
-            task["progress"] = progress
-
-            if progress_callback and i % 10 == 0:  # 每10个文件回调一次
-                progress_callback(progress, f"解压: {member_name}")
-
-        task["status"] = "success"
-        log("ZIP解压完成")
-
-
-def safe_member_path(base_dir: str, member_name: str) -> str:
-    """计算安全解压路径，阻止绝对路径和 .. 逃逸"""
-    if not member_name or '\x00' in member_name:
-        raise Exception("压缩包包含非法空路径")
-    raw = member_name.replace("\\", "/")
-    if raw.startswith("/") or re.match(r'^[A-Za-z]:/', raw):
-        raise Exception(f"压缩包包含绝对路径：{member_name}")
-    normalized = os.path.normpath(raw)
-    if normalized in ("", ".") or normalized.startswith("../") or normalized == "..":
-        raise Exception(f"压缩包包含危险路径：{member_name}")
-    full = os.path.abspath(os.path.join(base_dir, normalized))
-    base = os.path.abspath(base_dir)
-    if full != base and not full.startswith(base + os.sep):
-        raise Exception(f"压缩包路径越界：{member_name}")
-    return full
-
-
-def validate_extracted_tree(base_dir: str):
-    """检查解压后的目录树，阻止符号链接或路径逃逸"""
-    # 用 realpath 而非 abspath，避免 Termux 中 storage 符号链接导致误判
-    base = os.path.realpath(base_dir)
-    for root, dirs, files in os.walk(base, followlinks=False):
-        for name in dirs + files:
-            full = os.path.join(root, name)
-            real = os.path.realpath(full)
-            if os.path.islink(full):
-                raise Exception(f"解压内容包含符号链接，已阻止：{os.path.relpath(full, base)}")
-            if real != base and not real.startswith(base + os.sep):
-                raise Exception(f"解压内容越界，已阻止：{os.path.relpath(full, base)}")
-
-
-def extract_tar(src_path: str, target_dir: str, task: dict,
-                log: Callable, progress_callback: Optional[Callable] = None):
-    """解压 TAR 文件"""
-    with tarfile.open(src_path, 'r:*') as tf:
-        members = tf.getmembers()
-        total = len(members)
-
-        for i, member in enumerate(members):
-            # 处理中文文件名
-            try:
-                member.name = member.name.encode('cp437').decode('gbk')
-            except:
-                pass
-
-            target_path = safe_member_path(target_dir, member.name)
-            if member.issym() or member.islnk():
-                raise Exception(f"TAR包含链接文件，已阻止：{member.name}")
-            if member.isdir():
-                os.makedirs(target_path, exist_ok=True)
-            elif member.isfile():
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                src = tf.extractfile(member)
-                if src is None:
-                    raise Exception(f"无法读取TAR成员：{member.name}")
-                with src, open(target_path, 'wb') as dst:
-                    shutil.copyfileobj(src, dst)
-            else:
-                raise Exception(f"TAR包含不支持的特殊文件，已阻止：{member.name}")
-
-            # 更新进度
-            progress = int((i + 1) / total * 100)
-            task["progress"] = progress
-
-            if progress_callback and i % 10 == 0:
-                progress_callback(progress, f"解压: {member.name}")
-
-        task["status"] = "success"
-        log("TAR解压完成")
-
-
-def extract_7z(src_path: str, target_dir: str, task: dict,
-               log: Callable, progress_callback: Optional[Callable] = None):
-    """解压 7z 文件"""
-    if not shutil.which('7z'):
-        raise Exception("缺少7z工具，请手动安装 p7zip")
-
-    proc = subprocess.Popen(
-        ['7z', 'x', '-y', '-bb1', f'-o{target_dir}', src_path],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
-
-    for line in proc.stdout:
-        line = line.strip()
-        if line:
-            log(line)
-            # 7z 输出包含进度信息
-            if progress_callback and '%' in line:
-                try:
-                    # 尝试解析进度
-                    match = re.search(r'(\d+)%', line)
-                    if match:
-                        progress = int(match.group(1))
-                        task["progress"] = progress
-                        progress_callback(progress, line)
-                except:
-                    pass
-
-    try:
-        proc.wait(timeout=EXTRACT_PROC_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-        raise Exception(f"7z解压超时（{EXTRACT_PROC_TIMEOUT}秒），已终止")
-
-    if proc.returncode != 0:
-        raise Exception(f"7z解压失败，返回码 {proc.returncode}")
-
-    # 解压后检查路径逃逸（#18）
-    base = os.path.realpath(target_dir)
-    for root, dirs, files in os.walk(target_dir, followlinks=False):
-        for name in dirs + files:
-            full = os.path.join(root, name)
-            real = os.path.realpath(full)
-            if real != base and not real.startswith(base + os.sep):
-                raise Exception(f"解压内容越界，已阻止：{os.path.relpath(full, target_dir)}")
-
-    task["status"] = "success"
-    log("7z解压完成")
-
-
-def extract_rar(src_path: str, target_dir: str, task: dict,
-                log: Callable, progress_callback: Optional[Callable] = None):
-    """解压 RAR 文件"""
-    if not shutil.which('unrar'):
-        raise Exception("缺少unrar工具，请手动安装 unrar")
-
-    proc = subprocess.Popen(
-        ['unrar', 'x', '-y', src_path, target_dir],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
-
-    for line in proc.stdout:
-        line = line.strip()
-        if line:
-            log(line)
-
-    try:
-        proc.wait(timeout=EXTRACT_PROC_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-        raise Exception(f"rar解压超时（{EXTRACT_PROC_TIMEOUT}秒），已终止")
-
-    if proc.returncode != 0:
-        raise Exception("rar解压失败，压缩包损坏")
-
-    # 解压后检查路径逃逸（#18）
-    base = os.path.realpath(target_dir)
-    for root, dirs, files in os.walk(target_dir, followlinks=False):
-        for name in dirs + files:
-            full = os.path.join(root, name)
-            real = os.path.realpath(full)
-            if real != base and not real.startswith(base + os.sep):
-                raise Exception(f"解压内容越界，已阻止：{os.path.relpath(full, target_dir)}")
-
-    task["status"] = "success"
-    log("RAR解压完成")
-
-
-def get_task_status(task_id: str) -> dict:
-    """
-    获取任务状态
-
-    Args:
-        task_id: 任务ID
-
-    Returns:
-        任务状态字典
-    """
-    with _tasks_lock:
-        t = tasks.get(task_id)
-        if not t:
-            return {"success": False, "error": "任务不存在"}
-        return {
-            "success": True,
-            "task_id": task_id,
-            "type": t["type"],
-            "status": t["status"],
-            "progress": t.get("progress", 0),
-            "logs": list(t.get("logs", [])),
-            "error": t.get("error", ""),
-            "diagnosis": t.get("diagnosis", "")
+// 文件名：按分类器特征键命名，如 bat_rule_based.js
+module.exports = {
+    parse: async function(content, ctx) {
+        var steps = [];
+        var vars = {};
+        var romDir = ctx.romDir || '';
+        var fileApi = ctx.fileApi;
+        var delayedExpansion = false;
+
+        // ========== 工具函数 ==========
+        function resolveVars(text) {
+            text = text.replace(/%~dp0/gi, romDir + '/');
+            text = text.replace(/%(\w+)%/g, function(_, name) {
+                if (name === '*' || /^[1-9]$/.test(name)) return _; // 保留命令行占位符
+                return vars[name] !== undefined ? vars[name] : _;
+            });
+            if (delayedExpansion) {
+                text = text.replace(/!(\w+)!/g, function(_, name) {
+                    return vars[name] !== undefined ? vars[name] : _;
+                });
+            }
+            return text;
         }
 
+        function normalizePath(p) {
+            p = p.replace(/\\/g, '/').replace(/^["']|["']$/g, '');
+            if (p.indexOf('/') === 0) return p;
+            return romDir ? romDir.replace(/\/+$/, '') + '/' + p : p;
+        }
 
-def start_extract_from_public(rom_name: str) -> dict:
-    """
-    从公共目录解压 ROM 包
+        // 展开 for 变量（预留，本脚本未使用）
+        function expandAllForVars(str, forStack) {
+            if (!forStack.length) return str;
+            var varNames = forStack.map(function(ctx) { return ctx.var; });
+            var pattern = '%%(~[a-zA-Z]*)?(' + varNames.join('|') + ')';
+            var re = new RegExp(pattern, 'g');
+            return str.replace(re, function(match, modifier, varName) {
+                var ctx = null;
+                for (var i = forStack.length - 1; i >= 0; i--) {
+                    if (forStack[i].var === varName) { ctx = forStack[i]; break; }
+                }
+                if (!ctx) return match;
+                var rawVal = ctx.value;
+                var full = normalizePath(rawVal);
+                if (!modifier) return rawVal;
+                var mod = modifier.toLowerCase();
+                if (mod === '~') return rawVal.replace(/^["']|["']$/g, '');
+                if (mod.indexOf('f') >= 0) return full;
+                if (mod.indexOf('n') >= 0) return full.split('/').pop().replace(/\.[^/.]+$/, '');
+                if (mod.indexOf('x') >= 0) {
+                    var fname = full.split('/').pop();
+                    return (fname.match(/\.[^/.]+$/) || [''])[0];
+                }
+                if (mod.indexOf('p') >= 0) return full.substring(0, full.lastIndexOf('/') + 1);
+                return rawVal;
+            });
+        }
 
-    Args:
-        rom_name: ROM 包文件名
+        function splitCmd(line) {
+            var parts = [], cur = '', inQ = false;
+            for (var i = 0; i < line.length; i++) {
+                var ch = line[i];
+                if (ch === '"') { inQ = !inQ; continue; }
+                if ((ch === ' ' || ch === '\t') && !inQ) {
+                    if (cur) { parts.push(cur); cur = ''; }
+                } else cur += ch;
+            }
+            if (cur) parts.push(cur);
+            return parts;
+        }
 
-    Returns:
-        结果字典，包含 task_id
-    """
-    # 校验文件名
-    validate_rom_filename(rom_name)
+        function makeStep(parts) {
+            if (!parts || parts.length === 0) return null;
+            var bin = parts[0].replace(/\\/g, '/').split('/').pop().replace(/\.exe$/i, '').toLowerCase();
+            if (bin !== 'fastboot' && bin !== 'adb') return null;
+            var rest = parts.slice(1);
+            var globalParams = [];
+            while (rest.length && rest[0].startsWith('--')) globalParams.push(rest.shift());
 
-    # 构建路径
-    src_path = sanitize_path(PUBLIC_DIR, rom_name)
+            // 跳过占位符 %* 和 %1-%9
+            var skippedPlaceholders = [];
+            while (rest.length && /^%[\*1-9]$/.test(rest[0])) skippedPlaceholders.push(rest.shift());
+            if (rest.length === 0) return null;
 
-    if not os.path.exists(src_path):
-        return {"success": False, "error": "文件不存在"}
+            var action = rest[0].toLowerCase();
+            var afterAction = rest.slice(1);
+            var allParts = skippedPlaceholders.concat(rest);
+            var rawBase = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' ' + allParts.join(' ');
 
-    # 目标目录
-    rom_folder = get_rom_base_name(rom_name)
-    target_dir = os.path.join(ROM_DIR, rom_folder)
+            // getvar 不生成步骤
+            if (action === 'getvar') return null;
 
-    # 清理旧目录
-    try:
-        if os.path.exists(target_dir):
-            shutil.rmtree(target_dir)
-        os.makedirs(target_dir, exist_ok=True)
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+            if (action === '-w') return { type: 'raw', raw: rawBase, risk: 'HIGH' };
+            if (action === 'flash') {
+                var partition = afterAction[0] || '';
+                var imagePath = normalizePath(afterAction[1] || '');
+                var extraParams = afterAction.slice(2).join(' ');
+                return {
+                    type: 'flash', partition: partition, imagePath: imagePath,
+                    raw: rawBase, risk: getRisk(partition),
+                    prefixParams: globalParams.join(' ') || undefined,
+                    params: extraParams || undefined
+                };
+            }
+            if (action === 'erase') return { type: 'erase', partition: afterAction[0] || '', raw: rawBase, risk: 'HIGH' };
+            if (action === 'reboot') {
+                var target = afterAction.join(' ') || 'system';
+                return { type: 'reboot', target: target, raw: rawBase, risk: 'LOW' };
+            }
+            if (action === 'set_active' || action === '--set-active')
+                return { type: 'set_active', partition: afterAction[0] || '', raw: rawBase, risk: 'MEDIUM' };
+            if (action === 'delete-logical-partition')
+                return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+            if (action === 'devices') return { type: 'raw', raw: rawBase, risk: 'LOW' };
+            return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+        }
 
-    # 创建任务
-    task_id = create_extract_task(src_path, target_dir)
+        function getRisk(p) {
+            var map = { xbl:'CRITICAL',xbl_config:'CRITICAL',abl:'CRITICAL',bootloader:'CRITICAL',preloader_raw:'CRITICAL',modem:'HIGH',frp:'HIGH',metadata:'HIGH' };
+            return map[(p || '').toLowerCase()] || 'MEDIUM';
+        }
 
-    return {
-        "success": True,
-        "task_id": task_id,
-        "msg": "解压任务已启动",
-        "target_dir": target_dir
+        // 第一阶段：收集普通 set 变量
+        var lines = content.split(/\r?\n/);
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (/^setlocal\s+enabledelayedexpansion/i.test(line)) delayedExpansion = true;
+            var setMatch = line.match(/^set\s+"?(\w+)=(.+?)"?\s*$/i);
+            if (setMatch) vars[setMatch[1]] = setMatch[2];
+        }
+        for (var k in vars) vars[k] = resolveVars(vars[k]);
+
+        // 第二阶段：全量提取（无条件评估）
+        var i = 0;
+        // 括号深度计数器（用于跳过条件块的开头，但不影响内部命令提取）
+        var ifDepth = 0;       // 当前 if 块深度（仅用于跟踪，不用于跳过）
+        var skipMode = false;  // 是否处于被跳过的块中（始终 false，因为我们不跳过）
+
+        while (i < lines.length) {
+            var rawLine = lines[i].trim();
+            i++;
+
+            // 跳过无关行
+            if (!rawLine || /^(::|rem\b|@echo|title|color|cls|echo|pause|timeout|chcp|endlocal|goto|exit\b)/i.test(rawLine)) continue;
+            if (rawLine.startsWith('@')) rawLine = rawLine.substring(1).trim();
+            if (/^:\w+/.test(rawLine)) continue;
+            if (/^set\s+\/p\s+/i.test(rawLine)) continue;
+            if (/^set\s+/i.test(rawLine)) continue; // 普通 set 已收集
+
+            var expanded = resolveVars(rawLine);
+
+            // 处理 if 块开始（不评估条件，直接进入块，提取内部命令）
+            var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
+            if (ifStart) {
+                ifDepth++;      // 进入一层 if
+                continue;       // 跳过 if 行本身
+            }
+
+            // 处理 else / else if
+            if (/^\)?\s*else\b/i.test(expanded)) {
+                // 只是块结构的一部分，继续处理（不增加步骤）
+                var elseIfMatch = expanded.match(/^\)?\s*else\s+if\s+(.+?)\s*\(\s*$/i);
+                if (elseIfMatch) {
+                    ifDepth++;  // 进入嵌套 if
+                }
+                continue;
+            }
+
+            // 闭合括号
+            if (rawLine === ')') {
+                if (ifDepth > 0) ifDepth--;
+                continue;
+            }
+
+            // 清理管道、重定向和错误处理（||、&&）
+            var cleanLine = expanded
+                .replace(/\s*(\|\||&&).*$/i, '').trim();
+            var pipeIdx = cleanLine.indexOf('|');
+            if (pipeIdx >= 0) cleanLine = cleanLine.substring(0, pipeIdx).trim();
+            cleanLine = cleanLine.replace(/\d*>&\d+/g, '').replace(/>[^ ]*/g, '').trim();
+            if (!cleanLine) continue;
+
+            // 分割命令并生成步骤
+            var parts = splitCmd(cleanLine);
+            if (parts.length === 0) continue;
+            var step = makeStep(parts);
+            if (step) steps.push(step);
+        }
+
+        // 检查是否有 %* 占位符，设置参数提示
+        var hasParams = /%\*|%[1-9]/.test(content);
+
+        return {
+            steps: steps,
+            hasScriptParams: hasParams,
+            scriptParamHint: hasParams ? '如需要，请在参数框输入额外 fastboot 参数' : ''
+        };
     }
+};

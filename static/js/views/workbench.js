@@ -399,6 +399,87 @@ function _wbBindDragEvents(container) {
     }
 }
 
+// ===== 命令路由：WebUSB 模式 / 后端模式 =====
+
+/**
+ * 执行单个工作台步骤的 fastboot 命令，自动路由到 WebUSB 或后端。
+ * @param {Object} step - 步骤对象 { raw, type, partition, image, ... }
+ * @returns {Promise<{success: boolean, output: string}>}
+ */
+async function _wbRunFastbootCommand(step) {
+    var args = (step.raw || '').split(/\s+/).filter(Boolean);
+    if (!args.length) {
+        return { success: false, output: '该步骤没有可执行的命令' };
+    }
+
+    // ===== WebUSB 模式 =====
+    if (typeof appRunMode !== 'undefined' && appRunMode === 'webusb' &&
+        typeof webusbFastbootReady !== 'undefined' && webusbFastbootReady) {
+        var cmd = String(args[0] || '').toLowerCase();
+
+        // flash 命令：需要先通过后端 API 读取镜像字节，再通过 WebUSB 刷写
+        if (cmd === 'flash') {
+            var partition = args[1];
+            var imagePath = args[2];
+            if (!partition || !imagePath) {
+                return { success: false, output: 'flash 命令缺少分区名或镜像路径' };
+            }
+            // 通过后端 API 读取镜像字节（WebUSB 模式仍需后端提供文件读取）
+            var baseUrl = (typeof App !== 'undefined' && App.backendUrl) ? App.backendUrl : '';
+            var blobUrl = baseUrl + '/api/image/path_blob?path=' + encodeURIComponent(imagePath);
+            var blobResp = await fetch(blobUrl);
+            if (!blobResp.ok) {
+                var blobErr = '';
+                try { blobErr = await blobResp.text(); } catch(e) { blobErr = blobResp.status + ' ' + blobResp.statusText; }
+                return { success: false, output: '读取镜像失败(' + imagePath + '): ' + blobErr };
+            }
+            var bytes = new Uint8Array(await blobResp.arrayBuffer());
+            if (typeof runWebUsbFastbootCommand !== 'function') {
+                return { success: false, output: 'WebUSB 模块未加载' };
+            }
+            var flashResult = await runWebUsbFastbootCommand({
+                command: 'flash',
+                partition: partition,
+                payload: bytes
+            });
+            return { success: true, output: flashResult || ('已刷写 ' + partition) };
+        }
+
+        // delete-logical-partition（COW 清理）：WebUSB fastboot.mjs 不支持
+        if (cmd === 'delete-logical-partition') {
+            return {
+                success: false,
+                output: 'WebUSB 模式不支持 delete-logical-partition 命令（COW 清理），请切换到后端模式'
+            };
+        }
+
+        // 其他命令：通过 fastbootArgsToWebUsbCommand 路由
+        if (typeof fastbootArgsToWebUsbCommand !== 'function' || typeof runWebUsbFastbootCommand !== 'function') {
+            return { success: false, output: 'WebUSB 模块未加载' };
+        }
+        var cmdObj = fastbootArgsToWebUsbCommand(args);
+        if (!cmdObj) {
+            return { success: false, output: 'WebUSB 模式不支持该命令: ' + args.join(' ') };
+        }
+        var result = await runWebUsbFastbootCommand(cmdObj);
+        return { success: true, output: result || '完成' };
+    }
+
+    // ===== 后端模式 =====
+    var backendUrl = (typeof App !== 'undefined' && App.backendUrl) ? App.backendUrl : '';
+    var resp = await fetch(backendUrl + '/api/fastboot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ args: args }),
+    });
+    var data = await resp.json();
+    if (data.success) {
+        return { success: true, output: (data.output || data.combined || '').trim() };
+    } else {
+        return { success: false, output: data.error || data.combined || '未知错误' };
+    }
+}
+
 // ===== 单独执行步骤 =====
 async function _wbExecSingle(idx) {
     if (idx < 0 || idx >= _wbSteps.length) return;
@@ -408,25 +489,16 @@ async function _wbExecSingle(idx) {
         _wbSetStatus('工作台状态：该步骤没有可执行的命令', 'warn');
         return;
     }
-    // 如果是 fastboot flash xxx 这种，raw 不包含 "fastboot" 前缀
-    // /api/fastboot 的 args 不包含 fastboot 前缀
     _wbSetStatus('工作台状态：正在执行步骤 ' + (idx + 1) + '...', 'info');
     _wbShowOutput('▶ [步骤 ' + (idx + 1) + '] fastboot ' + args.join(' '));
     try {
-        var resp = await fetch('/api/fastboot', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ args: args }),
-        });
-        var data = await resp.json();
-        if (data.success) {
-            var output = (data.output || data.combined || '').trim();
-            if (output) _wbShowOutput(output);
+        var result = await _wbRunFastbootCommand(s);
+        if (result.success) {
+            if (result.output) _wbShowOutput(result.output);
             _wbShowOutput('✓ 步骤 ' + (idx + 1) + ' 完成');
             _wbSetStatus('工作台状态：步骤 ' + (idx + 1) + ' 执行完成', 'ok');
         } else {
-            var err = data.error || data.combined || '未知错误';
-            _wbShowOutput('✗ 步骤 ' + (idx + 1) + ' 失败: ' + err);
+            _wbShowOutput('✗ 步骤 ' + (idx + 1) + ' 失败: ' + result.output);
             _wbSetStatus('工作台状态：步骤 ' + (idx + 1) + ' 失败', 'err');
         }
     } catch(e) {
@@ -890,21 +962,14 @@ async function _wbExecuteFromIndex(startIdx) {
         _wbShowOutput('▶ [步骤 ' + (i + 1) + '/' + _wbSteps.length + '] fastboot ' + args.join(' '));
 
         try {
-            var resp = await fetch('/api/fastboot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ args: args }),
-            });
-            var data = await resp.json();
-            if (data.success) {
-                var output = (data.output || data.combined || '').trim();
-                if (output) _wbShowOutput(output);
+            var result = await _wbRunFastbootCommand(s);
+            if (result.success) {
+                if (result.output) _wbShowOutput(result.output);
             } else {
-                var err = data.error || data.combined || '未知错误';
-                _wbShowOutput('✗ 步骤 ' + (i + 1) + ' 失败: ' + err);
+                _wbShowOutput('✗ 步骤 ' + (i + 1) + ' 失败: ' + result.output);
                 _wbExecState = 'failed';
                 if (btn) { btn.textContent = '全部执行'; btn.classList.add('warn'); btn.classList.remove('secondary'); }
-                _wbSetStatus('工作台状态：步骤 ' + (i + 1) + ' 失败 - ' + err, 'err');
+                _wbSetStatus('工作台状态：步骤 ' + (i + 1) + ' 失败 - ' + result.output, 'err');
                 return;
             }
         } catch(e) {

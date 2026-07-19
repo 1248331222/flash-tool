@@ -1,201 +1,376 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Skytree Flasher / config.py
-"""天树刷机 - 配置模块 - 版本、路径、常量"""
+# Skytree Flasher / core/flasher.py
+"""
+core/flasher.py — 单分区刷写
+从单文件版提取，函数逻辑保持不变。
+
+批量线刷任务已拆分至 core/batch_flasher.py，
+此处通过 import 重新导出以保持对外接口不变。
+emit_task_progress 通过延迟导入避免与 routes.socketio 循环依赖。
+tasks / gen_task_id / persist_tasks 来自 core.extractor（全局共享）。
+"""
 
 import os
-import shutil
-import logging
+import json
+import time
+import shlex
+import threading
+import subprocess
+from typing import Callable, Optional
 
-# ============ 版本信息 ============
-TOOL_VERSION = "4.0.6"
-UPDATE_REMOTE_BASE = "http://81.68.84.205:5244/sd/123456"
-UPDATE_ZIP_URL = f"{UPDATE_REMOTE_BASE}/flash_tool.zip"
-UPDATE_CHECK_URL = "https://raw.githubusercontent.com/1248331222/flash-tool/master/config.py"
-
-# ============ 运行时默认配置 ============
-# 以下默认值可通过环境变量覆盖，保持无环境变量时行为不变
-DEFAULT_SERVER_HOST = os.environ.get('SKYTREE_SERVER_HOST', '127.0.0.1')
-DEFAULT_SERVER_PORT = int(os.environ.get('SKYTREE_SERVER_PORT', 8080))
-
-SOCKETIO_PING_TIMEOUT = int(os.environ.get('SKYTREE_SOCKETIO_PING_TIMEOUT', 60))
-SOCKETIO_PING_INTERVAL = int(os.environ.get('SKYTREE_SOCKETIO_PING_INTERVAL', 25))
-
-# WebDAV 服务端点
-WEBDAV_BASE_URL = os.environ.get('SKYTREE_WEBDAV_BASE_URL', 'http://81.68.84.205:5244/dav')
-WEBDAV_PUBLIC_BASE_URL = os.environ.get('SKYTREE_WEBDAV_PUBLIC_BASE_URL', 'http://81.68.84.205:5244/sd/BD')
-
-# 上传/OpenList 相关超时与限制
-UPLOAD_WEBDAV_TIMEOUT_SHORT = int(os.environ.get('SKYTREE_UPLOAD_WEBDAV_TIMEOUT_SHORT', 10))
-UPLOAD_WEBDAV_TIMEOUT_LONG = int(os.environ.get('SKYTREE_UPLOAD_WEBDAV_TIMEOUT_LONG', 30))
-WEBDAV_PROXY_TIMEOUT = int(os.environ.get('SKYTREE_WEBDAV_PROXY_TIMEOUT', 30))
-UPLOAD_PREVIEW_MAX_CHARS = int(os.environ.get('SKYTREE_UPLOAD_PREVIEW_MAX_CHARS', 100 * 1024))
-
-# 更新检查/下载超时
-UPDATE_CHECK_TIMEOUT = int(os.environ.get('SKYTREE_UPDATE_CHECK_TIMEOUT', 10))
-UPDATE_DOWNLOAD_TIMEOUT = int(os.environ.get('SKYTREE_UPDATE_DOWNLOAD_TIMEOUT', 120))
-
-# 批处理/线刷相关超时
-BATCH_REBOOT_MAX_WAIT = int(os.environ.get('SKYTREE_BATCH_REBOOT_MAX_WAIT', 300))
-FASTBOOT_FLASH_TIMEOUT = int(os.environ.get('SKYTREE_FASTBOOT_FLASH_TIMEOUT', 1800))
-FASTBOOT_GETVAR_TIMEOUT = int(os.environ.get('SKYTREE_FASTBOOT_GETVAR_TIMEOUT', 5))
-
-# ADB / 提取 / 步骤引擎 / 批处理辅助超时
-ADB_DEVICES_TIMEOUT = int(os.environ.get('SKYTREE_ADB_DEVICES_TIMEOUT', 20))
-EXTRACT_PROC_TIMEOUT = int(os.environ.get('SKYTREE_EXTRACT_PROC_TIMEOUT', 300))
-STEP_ENGINE_GETVAR_TIMEOUT = int(os.environ.get('SKYTREE_STEP_ENGINE_GETVAR_TIMEOUT', 10))
-BATCH_PROC_WAIT_TIMEOUT = int(os.environ.get('SKYTREE_BATCH_PROC_WAIT_TIMEOUT', 5))
-BATCH_HELPERS_MAX_WAIT = int(os.environ.get('SKYTREE_BATCH_HELPERS_MAX_WAIT', 180))
-
-# ============ 路径配置 ============
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-BUNDLED_FASTBOOT_PATH = os.path.join(PROJECT_DIR, "bin", "fastboot-aarch64")
-
-PUBLIC_DIR = os.environ.get(
-    'PUBLIC_DIR',
-    '/data/data/com.termux/files/home/storage/shared/123456'
+from config import (
+    TASK_LOG_LIMIT,
+    FLASH_HISTORY_FILE,
+    REBOOT_TIMEOUT,
+    WAIT_FASTBOOT_INITIAL,
+    BATTERY_LOW_THRESHOLD,
+    logger,
 )
-PUBLIC_IMAGE_DIR = os.path.join(PUBLIC_DIR, "image")
-
-ROM_DIR = os.environ.get('ROM_DIR', os.path.join(PUBLIC_DIR, 'rom'))
-IMAGE_DIR = os.environ.get('IMAGE_DIR', os.path.join(PROJECT_DIR, 'image'))
-STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
-FLASH_HISTORY_FILE = os.path.join(PUBLIC_DIR, "flash_history.json")
-TASK_STATE_FILE = os.path.join(PROJECT_DIR, "tasks.json")
-
-# ============ fastboot 检测 ============
-def _detect_fastboot():
-    """自动检测可用的 fastboot 路径"""
-    # 1. 内置 bin
-    if os.path.exists(BUNDLED_FASTBOOT_PATH):
-        return BUNDLED_FASTBOOT_PATH
-    # 2. 免root二进制
-    no_root_fb = os.path.expanduser('~/.termux-adb/fastboot')
-    if os.path.isfile(no_root_fb) and os.path.getsize(no_root_fb) > 1000:
-        return no_root_fb
-    # 3. 系统 fastboot
-    system_fb = shutil.which('fastboot')
-    if system_fb:
-        return system_fb
-    # 4. 回退
-    return no_root_fb
-
-DEFAULT_FASTBOOT_PATH = _detect_fastboot()
-FASTBOOT_PATH = os.environ.get('FASTBOOT_PATH', DEFAULT_FASTBOOT_PATH)
-ADB_PATH = os.environ.get("ADB_PATH", shutil.which("adb") or "")
-TERMUX_USB_CMD = "termux-usb"
-
-# ============ 支持的文件格式 ============
-SUPPORTED_ROM_SUFFIXES = (
-    '.zip', '.tar', '.tar.gz', '.tgz',
-    '.tar.bz2', '.tbz2', '.tar.md5', '.7z', '.rar'
+from core.utils import (
+    validate_partition_name,
+    is_dangerous_partition,
+    get_image_path,
+    diagnose_error,
+)
+from core.extractor import tasks, gen_task_id, persist_tasks
+from core.device import (
+    run_fastboot_command,
+    check_devices,
+    get_device_info,
+    get_fastboot_base_cmd,
+    classify_fastboot_result,
 )
 
-# ============ 高危分区黑名单 ============
-DANGEROUS_PARTITIONS = {
-    "bootloader", "aboot", "xbl", "xbl_a", "xbl_b",
-    "modem", "modem_a", "modem_b",
-    "persist", "persist_a", "persist_b",
-    "ddr", "tz", "hyp", "keymaster", "rpm", "sbl1"
-}
 
-# ============ 合法分区名白名单 ============
-VALID_PARTITIONS = {
-    "boot", "boot_a", "boot_b",
-    "recovery", "recovery_a", "recovery_b",
-    "system", "system_a", "system_b",
-    "vendor", "vendor_a", "vendor_b",
-    "userdata", "cache",
-    "dtbo", "dtbo_a", "dtbo_b",
-    "vbmeta", "vbmeta_a", "vbmeta_b",
-    "vbmeta_system", "vbmeta_system_a", "vbmeta_system_b",
-    "super", "modem", "modem_a", "modem_b",
-    "bluetooth", "dsp", "frp", "keystore", "metadata",
-    "misc", "oem", "persist", "persist_a", "persist_b",
-    "qupfw", "storsec", "uefisecapp", "xbl", "xbl_a", "xbl_b",
-    "xbl_config", "xbl_config_a", "xbl_config_b",
-}
+# ======================================================================
+# 模块: services/flasher.py
+# ======================================================================
 
-# ============ Flask 配置 ============
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
-# ============ 日志配置 ============
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
-LOG_FILE = os.environ.get('LOG_FILE', os.path.join(PROJECT_DIR, 'flash_tool.log'))
+def create_flash_task(partition: str, image_path: str,
+                      extra_params: str = "",
+                      extra_before: str = "",
+                      allow_dangerous: bool = False,
+                      progress_callback: Optional[Callable] = None) -> dict:
+    """
+    创建刷写任务
 
-def setup_logging():
-    """配置日志系统"""
-    logging.basicConfig(
-        level=getattr(logging, LOG_LEVEL),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(LOG_FILE),
-            logging.StreamHandler()
-        ]
-    )
-    return logging.getLogger('skytree_flasher')
+    Args:
+        partition: 分区名
+        image_path: 镜像路径
+        extra_params: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
+        allow_dangerous: 是否允许高危分区
+        progress_callback: 进度回调
 
-logger = setup_logging()
+    Returns:
+        结果字典，包含 task_id 或 error
+    """
+    # 校验分区名
+    try:
+        partition = validate_partition_name(partition)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
-# ============ WebDAV / OpenList 上传配置 ============
-# 注意：此账号（123456/123456）仅用于用户上传刷机脚本到 OpenList。
-# 项目打包上传到 /TY/flash_tool/ 请使用超级账号（见记忆或环境变量 WEBDAV_ADMIN_USER/WEBDAV_ADMIN_PASS）。
-# 旧入口兼容：WEBDAV_URL 指向坚果云 WebDAV
-WEBDAV_URL = os.environ.get('SKYTREE_WEBDAV_URL', 'https://dav.jianguoyun.com/dav/')
-WEBDAV_USER = os.environ.get('SKYTREE_WEBDAV_USER', '1248331222@qq.com')
-WEBDAV_PASS = os.environ.get('SKYTREE_WEBDAV_PASS', 'a9a69b5dz6ka58r4')
-UPLOAD_DIR = os.path.join(PUBLIC_DIR, "uploaded_scripts")
+    # 检查高危分区
+    if is_dangerous_partition(partition) and not allow_dangerous:
+        return {
+            "success": False,
+            "error": "高危分区，需确认后才能刷",
+            "dangerous": True,
+            "partition": partition
+        }
 
-# ============ 超时与轮询配置 ============
-FASTBOOT_DEFAULT_TIMEOUT = 1800
-ADB_DEFAULT_TIMEOUT = 300
-BL_QUERY_TIMEOUT = 15
-DEVICE_INFO_TIMEOUT = 10
-USB_CHECK_TIMEOUT = 10
-USB_GRANT_TIMEOUT = 10
-REBOOT_TIMEOUT = 8
-WAIT_FASTBOOT_INITIAL = 1
-TASK_LOG_LIMIT = 300
-BATTERY_LOW_THRESHOLD = 20
+    # 校验镜像路径
+    if not os.path.exists(image_path):
+        return {"success": False, "error": "镜像不存在"}
 
-# ============ 解析器目录（项目根目录下，便于随项目迁移） ============
-PARSERS_DIR = os.path.join(PROJECT_DIR, 'parsers')
+    # 创建任务
+    tid = gen_task_id()
+    tasks[tid] = {
+        "type": "flash",
+        "status": "pending",
+        "progress": 0,
+        "logs": [],
+        "error": "",
+        "diagnosis": "",
+        "created_at": time.time(),
+        "updated_at": time.time(),
+        "partition": partition,
+        "image_path": image_path
+    }
+    persist_tasks()
 
-# ============ 初始化目录 ============
-def init_directories():
-    """自动创建必要目录"""
-    # 解析器目录：项目根目录/parsers
-    os.makedirs(PARSERS_DIR, exist_ok=True)
+    # 启动后台线程
+    threading.Thread(
+        target=flash_worker,
+        args=(tid, partition, image_path, extra_params, extra_before, progress_callback),
+        daemon=True
+    ).start()
 
-    # 迁移旧目录 ~/.skytree/parsers 中的解析器到新目录
-    old_parsers_dir = os.path.join(os.path.expanduser('~'), '.skytree', 'parsers')
-    if os.path.isdir(old_parsers_dir) and os.path.abspath(old_parsers_dir) != os.path.abspath(PARSERS_DIR):
-        import shutil as _shutil
-        migrated = 0
-        for fname in os.listdir(old_parsers_dir):
-            if fname.endswith('.js'):
-                old_fp = os.path.join(old_parsers_dir, fname)
-                new_fp = os.path.join(PARSERS_DIR, fname)
-                if not os.path.exists(new_fp):
-                    try:
-                        _shutil.copy2(old_fp, new_fp)
-                        migrated += 1
-                        logger.info(f"迁移解析器: {fname}")
-                    except Exception as e:
-                        logger.warning(f"迁移解析器失败 {fname}: {e}")
-        # 迁移 registry.json
-        old_reg = os.path.join(old_parsers_dir, 'registry.json')
-        new_reg = os.path.join(PARSERS_DIR, 'registry.json')
-        if os.path.exists(old_reg) and not os.path.exists(new_reg):
+    logger.info(f"创建刷写任务: {tid}, 分区: {partition}")
+
+    return {
+        "success": True,
+        "task_id": tid,
+        "msg": "刷写任务已启动"
+    }
+
+
+def flash_worker(task_id: str, partition: str, image_path: str,
+                 extra_params: str = "",
+                 extra_before: str = "",
+                 progress_callback: Optional[Callable] = None):
+    """
+    刷写任务工作函数
+
+    Args:
+        task_id: 任务ID
+        partition: 分区名
+        image_path: 镜像路径
+        extra_params: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
+        progress_callback: 进度回调
+    """
+    task = tasks[task_id]
+    task["status"] = "running"
+    task["diagnosis"] = ""
+    task["updated_at"] = time.time()
+    persist_tasks()
+
+    def log(msg: str):
+        task["logs"].append(msg)
+        task["logs"] = task["logs"][-TASK_LOG_LIMIT:]
+        task["updated_at"] = time.time()
+        logger.info(f"[{task_id}] {msg}")
+        persist_tasks()
+        if progress_callback:
+            progress_callback(task["progress"], msg)
+
+    try:
+        # 获取镜像大小
+        img_size_mb = round(os.path.getsize(image_path) / 1024 / 1024, 1)
+        log(f"开始刷写分区：{partition}（大小：{img_size_mb} MB）")
+
+        # 构建命令
+        cmd = get_fastboot_base_cmd()
+        if extra_before:
+            cmd += extra_before.strip().split()
+        cmd += ["flash", partition, image_path]
+        if extra_params:
+            cmd += extra_params.strip().split()
+
+        # 执行命令
+        task["progress"] = 20
+        log(f"执行命令: fastboot flash {partition} ...")
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env={**os.environ, "TERMUX_USB_AUTO_GRANT": "1"}
+        )
+
+        output = ""
+        for line in proc.stdout:
+            line = line.strip()
+            if line:
+                output += line + " "
+                log(line)
+
+                # 根据输出更新进度
+                if "sending" in line.lower():
+                    task["progress"] = 40
+                elif "writing" in line.lower():
+                    task["progress"] = 70
+
+                if progress_callback:
+                    progress_callback(task["progress"], line)
+
+        # 等待完成，支持取消与超时（#11, #26）
+        deadline = time.time() + 600
+        try:
+            while proc.poll() is None:
+                if task.get('cancel_requested'):
+                    proc.terminate()
+                    raise Exception("任务已取消")
+                if time.time() > deadline:
+                    proc.kill()
+                    proc.wait()
+                    raise Exception("刷写超时（600秒），已终止")
+                time.sleep(0.5)
+        except Exception:
+            if proc.poll() is None:
+                proc.kill()
+            raise
+
+        if proc.returncode == 0:
+            task["status"] = "success"
+            task["progress"] = 100
+            task["category"] = "success"
+            log(f"刷写完成：{partition}")
+            logger.info(f"[{task_id}] 刷写成功: {partition}")
+        else:
+            cls = classify_fastboot_result(output, ["flash", partition, image_path], proc.returncode)
+            task["status"] = "error"
+            task["error"] = output.strip()
+            task["diagnosis"] = diagnose_error(output)
+            task.update(cls)
+            log(f"刷写失败：{output.strip()}")
+
+            if task["diagnosis"]:
+                log(f"解决办法：{task['diagnosis']}")
+
+            logger.error(f"[{task_id}] 刷写失败: {output}")
+
+    except Exception as e:
+        task["status"] = "error"
+        task["error"] = str(e)
+        task["diagnosis"] = diagnose_error(str(e))
+        task.update(classify_fastboot_result(str(e), ["flash", partition, image_path], 1))
+        log(f"刷写失败：{str(e)}")
+
+        if task["diagnosis"]:
+            log(f"解决办法：{task['diagnosis']}")
+
+        logger.error(f"[{task_id}] 刷写异常: {e}")
+
+
+def flash_partition(partition: str, image_name: str,
+                    source: str = "local",
+                    rom_name: str = "",
+                    extra: str = "",
+                    extra_before: str = "",
+                    allow_dangerous: bool = False) -> dict:
+    """
+    刷写分区（API入口）
+
+    Args:
+        partition: 分区名
+        image_name: 镜像文件名
+        source: 来源 (local/rom/public)
+        rom_name: ROM包名（source=rom时需要）
+        extra: 额外参数（放在 flash 命令之后）
+        extra_before: 额外参数（放在 flash 命令之前）
+        allow_dangerous: 是否允许高危分区
+
+    Returns:
+        结果字典
+    """
+    # 获取镜像路径
+    try:
+        image_path = get_image_path(source, image_name, rom_name)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+    if not os.path.exists(image_path):
+        return {"success": False, "error": "镜像不存在"}
+
+    # 创建任务
+    return create_flash_task(partition, image_path, extra, extra_before, allow_dangerous)
+
+
+def batch_precheck(steps: list, source: str, rom_name: str = "") -> dict:
+    """
+    批量刷机预校验
+
+    Args:
+        steps: 步骤列表
+        source: 来源
+        rom_name: ROM包名
+
+    Returns:
+        校验结果
+    """
+    missing = []
+    dangerous = []
+    warnings = []
+
+    # 电量检查
+    try:
+        dev_result = get_device_info()
+        dev_info = dev_result.get("info", {}) if dev_result.get("success") else {}
+        soc = dev_info.get("battery_soc")
+        if soc is not None:
             try:
-                _shutil.copy2(old_reg, new_reg)
-                logger.info("迁移解析器注册表: registry.json")
-            except Exception:
+                soc_val = int(soc)
+                if soc_val < BATTERY_LOW_THRESHOLD:
+                    warnings.append(f"设备电量较低（{soc_val}%），建议充电至 {BATTERY_LOW_THRESHOLD}% 以上再刷机")
+            except (ValueError, TypeError):
                 pass
-        if migrated > 0:
-            logger.info(f"共迁移 {migrated} 个解析器到 {PARSERS_DIR}")
+    except Exception:
+        pass
 
-    for d in [ROM_DIR, IMAGE_DIR, STATIC_DIR, PUBLIC_DIR, PUBLIC_IMAGE_DIR]:
-        os.makedirs(d, exist_ok=True)
-        logger.debug(f"目录已就绪: {d}")
+    for step in steps:
+        if step["type"] != "flash":
+            continue
+
+        img_name = step["fileName"]
+        part = step["part"]
+
+        # 检查高危分区
+        if is_dangerous_partition(part):
+            dangerous.append({
+                "stepName": f"{part} -> {img_name}",
+                "fileName": img_name,
+                "partition": part
+            })
+
+        # 检查文件存在
+        # 优先使用解析阶段已校验的 imagePath
+        image_path = step.get("imagePath") or ""
+        if image_path and os.path.exists(image_path):
+            pass  # 已确认存在
+        else:
+            try:
+                image_path = get_image_path(source, img_name, rom_name)
+                if not os.path.exists(image_path):
+                    missing.append({
+                        "stepName": f"{part} -> {img_name}",
+                        "fileName": img_name
+                    })
+            except (ValueError, FileNotFoundError) as e:
+                missing.append({
+                    "stepName": f"{part} -> {img_name}",
+                    "fileName": img_name,
+                    "error": str(e)
+                })
+
+    return {
+        "success": len(missing) == 0,
+        "missingList": missing,
+        "dangerousList": dangerous,
+        "warnings": warnings,
+        "totalSteps": len(steps),
+        "flashSteps": len([s for s in steps if s["type"] == "flash"])
+    }
+
+
+# ======================================================================
+# 公共辅助：时间戳与日志追加（供 core/batch_flasher.py 使用）
+# ======================================================================
+
+
+def _now():
+    return time.time()
+
+
+def _append_log(task: dict, msg: str):
+    task.setdefault("logs", []).append(msg)
+    task["logs"] = task["logs"][-TASK_LOG_LIMIT:]
+    task["updated_at"] = _now()
+    logger.info(f"[{task.get('id', 'batch')}] {msg}")
+    persist_tasks()
+
+
+# ----------------------------------------------------------------------
+# 重新导出批量线刷接口（已拆分至 core/batch_flasher.py）
+# 放在文件末尾，确保 _now / _append_log 先定义，避免循环导入。
+# ----------------------------------------------------------------------
+from core.batch_flasher import (  # noqa: E402
+    create_batch_flash_task,
+    cancel_batch_flash_task,
+    get_latest_batch_task,
+    _load_flash_history,
+)

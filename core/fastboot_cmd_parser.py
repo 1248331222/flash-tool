@@ -1,330 +1,329 @@
-# Skytree Flasher / core/fastboot_cmd_parser.py
-# -*- coding: utf-8 -*-
-"""
-core/fastboot_cmd_parser.py — fastboot 命令解析与风险定级
-从 core/bat_parser.py 拆分而来，函数逻辑保持不变。
+// 文件名：按分类器特征键命名，如 bat_rule_based.js
+module.exports = {
+    parse: async function(content, ctx) {
+        var steps = [];
+        var vars = {};
+        var romDir = ctx.romDir || '';
+        var fileApi = ctx.fileApi;
+        var delayedExpansion = false;
 
-split_args / strip_quote 已内联到此文件（原从 bat_parser 导入，bat_parser 已删除）。
-DANGEROUS_PARTITIONS / VALID_PARTITIONS 来自 config（分区白名单）。
-"""
-
-import re
-import shlex
-from typing import Dict, Optional, List
-
-from config import DANGEROUS_PARTITIONS, VALID_PARTITIONS
-
-
-def split_args(text: str) -> List[str]:
-    """兼容 BAT/SH 的简单参数切分，保留 Windows 反斜杠路径"""
-    try:
-        return shlex.split(text, posix=False)
-    except Exception:
-        return re.findall(r'"[^"]*"|\'[^\']*\'|\S+', text)
-
-
-def strip_quote(v: str) -> str:
-    v = (v or '').strip()
-    if len(v) >= 2 and ((v[0] == '"' and v[-1] == '"') or (v[0] == "'" and v[-1] == "'")):
-        return v[1:-1]
-    return v
-
-
-def _assess_risk(step: Dict) -> str:
-    """
-    第四层：风险定级引擎
-    基于分区名、命令类型、参数，按规则自动判定 S/A/B/C 四级风险
-
-    S 级（致命）：fastboot flashing lock（上锁）、刷 xbl/abl/pmic 等底层 Bootloader 分区、
-                  format 格式化全字库、擦除 frp 以外的安全分区
-    A 级（高危）：刷 vbmeta/modem/rpm/tz 分区、关闭 AVB 校验、擦除 userdata（双清）、切换槽位
-    B 级（中危）：刷 boot/system/vendor/product 等普通系统分区
-    C 级（低危）：getvar 查询、reboot 重启、devices 列表等无害操作
-    """
-    cmd_type = step.get('type', '')
-    part = step.get('part', '')
-    params = step.get('params', '') or step.get('prefixParams', '')
-    raw = step.get('raw', '')
-
-    # 去除槽位后缀 _a / _b 用于分区名匹配
-    part_lower = part.lower()
-    for suffix in ('_a', '_b', '_cow'):
-        if part_lower.endswith(suffix):
-            part_lower = part_lower[:-len(suffix)]
-
-    # S 级（致命）
-    if 'flashing lock' in raw.lower():
-        return 'S'
-    if part_lower in {'xbl', 'abl', 'pmic', 'ufs', 'ufs_misc', 'gpt', 'gpt_backup',
-                       'bootloader', 'sbl', 'sbl1', 'rpm', 'tz', 'hyp', 'devcfg',
-                       'cmnlib', 'cmnlib64', 'keymaster', 'mdtp', 'aop', 'cpucp',
-                       'multiimgoem', 'multiimgqti'}:
-        return 'S'
-    if cmd_type == 'erase' and part_lower in {'userdata', 'data', 'system', 'vendor',
-                                                'product', 'system_ext', 'odm'}:
-        return 'S'
-    if cmd_type == 'delete-logical-partition':
-        return 'B'
-
-    # A 级（高危）
-    if part_lower in {'vbmeta', 'vbmeta_system', 'vbmeta_vendor', 'modem', 'modemst1',
-                       'modemst2', 'fsg', 'fsghdr', 'dsp', 'bluetooth', 'wifi',
-                       'frp', 'persistent', 'misc', 'keystore', 'metadata',
-                       'super', 'super_empty', 'recovery', 'dtbo'}:
-        return 'A'
-    if '--disable-verity' in params or '--disable-verification' in params:
-        return 'A'
-    if cmd_type == 'set_active':
-        return 'A'
-    if cmd_type == 'erase' and part_lower not in {'frp'}:
-        return 'A'
-    if cmd_type == 'oem':
-        return 'A'
-
-    # B 级（中危）
-    if cmd_type == 'flash' and part_lower in {'boot', 'system', 'vendor', 'product',
-                                               'system_ext', 'odm', 'init_boot',
-                                               'vendor_boot', 'vendor_kernel_boot',
-                                               'system_dlkm', 'vendor_dlkm'}:
-        return 'B'
-
-    # C 级（低危）
-    if cmd_type in {'getvar', 'devices', 'help'}:
-        return 'C'
-    if cmd_type == 'reboot':
-        return 'C'
-
-    return 'B'
-
-
-def parse_fastboot_tail(tail: str, raw_line: str) -> Optional[Dict]:
-    """从 fastboot 后面的参数中找到真实命令，允许命令前有 -s/--slot 等选项"""
-    # 清理 Windows 重定向 (>nul 2>&1, >NUL, >>file 等)
-    tail = re.sub(r'\s*>[>]?[^\n]*', '', tail)
-    _sq = strip_quote
-    _sa = split_args
-    tokens = [_sq(x) for x in _sa(tail)]
-    if not tokens:
-        return None
-    known = {'flash', 'erase', 'set_active', '--set-active', 'reboot', 'reboot-bootloader',
-             'oem', 'flashing', 'delete-logical-partition', 'update', 'boot',
-             'unlock', 'lock', 'continue', 'getvar', 'devices'}
-    idx = 0
-    prefix_opts = []
-    while idx < len(tokens):
-        tok = tokens[idx].lower()
-        if tok in known or tok.startswith('flash:') or tok.startswith('--set-active'):
-            break
-        # -w 等独立标志参数（不需要值）
-        if tok == '-w':
-            return {
-                'type': 'erase',
-                'part': 'userdata',
-                'raw': raw_line,
-                'note': 'fastboot -w: 擦除 userdata（清空用户数据）'
+        function resolveVars(text) {
+            text = text.replace(/%~dp0/gi, romDir + '/');
+            text = text.replace(/%(\w+)%/g, function(_, name) {
+                if (name === '*' || /^[1-9]$/.test(name)) return _;
+                return vars[name] !== undefined ? vars[name] : _;
+            });
+            if (delayedExpansion) {
+                text = text.replace(/!(\w+)!/g, function(_, name) {
+                    return vars[name] !== undefined ? vars[name] : _;
+                });
             }
-        prefix_opts.append(tokens[idx])
-        if tok in ('-s', '--slot', '--set-active') and idx + 1 < len(tokens):
-            idx += 2
-        elif tok.startswith('-'):
-            idx += 1
-        else:
-            idx += 1
-    if idx >= len(tokens):
-        return None
-    cmd = tokens[idx].lower()
-    rest = tokens[idx + 1:]
-    if cmd == 'flashing' and rest:
-        return {
-            'type': 'oem',
-            'part': ' '.join(rest),
-            'raw': raw_line
-        }
-    if cmd == 'delete-logical-partition' and rest:
-        return {
-            'type': 'delete-logical-partition',
-            'part': rest[0],
-            'raw': raw_line
-        }
-    if cmd.startswith('--set-active'):
-        slot = cmd.split('=', 1)[1] if '=' in cmd else (rest[0] if rest else '')
-        return {
-            'type': 'set_active',
-            'part': slot,
-            'raw': raw_line
-        }
-    if cmd.startswith('flash:'):
-        # flash:raw 的分区和镜像仍在后续参数中，这里只按 flash 处理
-        cmd = 'flash'
-    step = parse_fastboot_command(cmd, ' '.join(rest), raw_line)
-    if step and prefix_opts:
-        step['prefixParams'] = ' '.join(prefix_opts)
-    return step
-
-
-def parse_fastboot_command(cmd: str, args: str, raw_line: str) -> Optional[Dict]:
-    """
-    解析单个 fastboot 命令
-
-    Args:
-        cmd: 命令类型 (flash/erase/set_active/reboot 等)
-        args: 命令参数
-        raw_line: 原始行内容
-
-    Returns:
-        步骤字典，或 None（如果不是有效命令）
-    """
-    if cmd == 'flash':
-        # flash partition image [params]
-        _sq = strip_quote
-        _sa = split_args
-        parts = [_sq(x) for x in _sa(args)]
-        if len(parts) < 2:
-            return None
-        flash_opts = []
-        while parts and parts[0].startswith('-') and not parts[0].lower().endswith('.img'):
-            flash_opts.append(parts.pop(0))
-        if len(parts) < 2:
-            return None
-        partition = parts[0]
-        image = parts[1].replace('\\', '/')
-
-        # 清理 Windows 批处理变量
-        # %~dp0 = 脚本所在目录（最常见）
-        # %~d0 = 驱动器号, %~p0 = 路径, %~n0 = 文件名, %~x0 = 扩展名
-        # %CD% = 当前目录, %~dp0 = 同 %~dp0
-        image = re.sub(r'%~[a-zA-Z]0', '', image, flags=re.IGNORECASE)
-        image = re.sub(r'%CD%', '', image, flags=re.IGNORECASE)
-        image = re.sub(r'%~dp0', '', image, flags=re.IGNORECASE)
-        # 清理其他可能的 %VAR% 环境变量（保留文件名中的合法字符）
-        image = re.sub(r'%[\w]+%', '', image)
-        # 清理 %%f 等 BAT for 循环变量
-        image = re.sub(r'%%[\w]+', '', image)
-        # 清理 !var! 延迟扩展变量
-        image = re.sub(r'!\w+!', '', image)
-        # 清理残留的路径分隔符前缀
-        image = re.sub(r'^[\\/]+', '', image)
-        # 清理 .\ 前缀（当前目录）
-        image = re.sub(r'^\./', '', image)
-        # 去掉路径中可能产生的多余斜杠
-        image = re.sub(r'/+', '/', image)
-        image = image.lstrip('/')
-
-        # 处理 .img / .bin / .mbn / .elf / .fw 等镜像文件
-        valid_exts = ('.img', '.bin', '.mbn', '.elf', '.fw', '.xml', '.json')
-        if not any(image.lower().endswith(ext) for ext in valid_exts):
-            return None
-
-        params = ' '.join(flash_opts + parts[2:]) if (flash_opts or len(parts) > 2) else ''
-
-        return {
-            'type': 'flash',
-            'part': partition,
-            'fileName': image,
-            'params': params,
-            'raw': raw_line
+            return text;
         }
 
-    elif cmd == 'erase':
-        # erase partition
-        _sq = strip_quote
-        _sa = split_args
-        parts = [_sq(x) for x in _sa(args)]
-        if not parts:
-            return None
-        partition = parts[0]
-        return {
-            'type': 'erase',
-            'part': partition,
-            'raw': raw_line
+        function normalizePath(p) {
+            p = p.replace(/\\/g, '/').replace(/^["']|["']$/g, '');
+            if (p.indexOf('/') === 0) return p;
+            return romDir ? romDir.replace(/\/+$/, '') + '/' + p : p;
         }
 
-    elif cmd == 'set_active':
-        # set_active slot
-        _sq = strip_quote
-        _sa = split_args
-        parts = [_sq(x) for x in _sa(args)]
-        if not parts:
-            return None
-        slot = parts[0].replace('--slot=', '').replace('_', '')
-        return {
-            'type': 'set_active',
-            'part': slot,
-            'raw': raw_line
+        function expandAllForVars(str, forStack) {
+            if (!forStack.length) return str;
+            var varNames = forStack.map(function(ctx) { return ctx.var; });
+            var pattern = '%%(~[a-zA-Z]*)?(' + varNames.join('|') + ')';
+            var re = new RegExp(pattern, 'g');
+            return str.replace(re, function(match, modifier, varName) {
+                var ctx = null;
+                for (var i = forStack.length - 1; i >= 0; i--) {
+                    if (forStack[i].var === varName) { ctx = forStack[i]; break; }
+                }
+                if (!ctx) return match;
+                var rawVal = ctx.value;
+                var full = normalizePath(rawVal);
+                if (!modifier) return rawVal;
+                var mod = modifier.toLowerCase();
+                if (mod === '~') return rawVal.replace(/^["']|["']$/g, '');
+                if (mod.indexOf('f') >= 0) return full;
+                if (mod.indexOf('n') >= 0) return full.split('/').pop().replace(/\.[^/.]+$/, '');
+                if (mod.indexOf('x') >= 0) {
+                    var fname = full.split('/').pop();
+                    return (fname.match(/\.[^/.]+$/) || [''])[0];
+                }
+                if (mod.indexOf('p') >= 0) return full.substring(0, full.lastIndexOf('/') + 1);
+                return rawVal;
+            });
         }
 
-    elif cmd == 'reboot':
-        # reboot [target]
-        _sq = strip_quote
-        target = (_sq(args).strip() or 'system')
-        return {
-            'type': 'reboot',
-            'part': target,
-            'raw': raw_line,
-            'note': f'重启设备到 {target} 模式'
+        function splitCmd(line) {
+            var parts = [], cur = '', inQ = false;
+            for (var i = 0; i < line.length; i++) {
+                var ch = line[i];
+                if (ch === '"') { inQ = !inQ; continue; }
+                if ((ch === ' ' || ch === '\t') && !inQ) {
+                    if (cur) { parts.push(cur); cur = ''; }
+                } else cur += ch;
+            }
+            if (cur) parts.push(cur);
+            return parts;
         }
 
-    elif cmd == 'reboot-bootloader':
-        return {
-            'type': 'reboot',
-            'part': 'bootloader',
-            'raw': raw_line,
-            'note': '重启设备到 Bootloader 模式'
+        function makeStep(parts, prefixParams) {
+            if (!parts || parts.length === 0) return null;
+            var bin = parts[0].replace(/\\/g, '/').split('/').pop().replace(/\.exe$/i, '').toLowerCase();
+            if (bin !== 'fastboot' && bin !== 'adb') return null;
+            var rest = parts.slice(1);
+            var globalParams = [];
+            while (rest.length && rest[0].startsWith('--')) globalParams.push(rest.shift());
+            if (prefixParams) globalParams = prefixParams.split(/\s+/).concat(globalParams);
+
+            // 跳过占位符 %* 和 %1-%9
+            var skippedPlaceholders = [];
+            while (rest.length && /^%[\*1-9]$/.test(rest[0])) skippedPlaceholders.push(rest.shift());
+            if (rest.length === 0) return null;
+
+            var action = rest[0].toLowerCase();
+            var afterAction = rest.slice(1);
+            var allParts = skippedPlaceholders.concat(rest);
+            var rawBase = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' ' + allParts.join(' ');
+
+            // getvar 不生成步骤
+            if (action === 'getvar') return null;
+
+            if (action === '-w') {
+                return { type: 'raw', raw: rawBase, risk: 'HIGH' };
+            }
+            if (action === 'flash') {
+                var partition = afterAction[0] || '';
+                var imagePath = normalizePath(afterAction[1] || '');
+                var extraParams = afterAction.slice(2).join(' ');
+                return {
+                    type: 'flash', partition: partition, imagePath: imagePath,
+                    raw: rawBase, risk: getRisk(partition),
+                    prefixParams: globalParams.join(' ') || undefined,
+                    params: extraParams || undefined
+                };
+            }
+            if (action === 'erase') {
+                return { type: 'erase', partition: afterAction[0] || '', raw: rawBase, risk: 'HIGH' };
+            }
+            if (action === 'reboot') {
+                var target = afterAction.join(' ') || 'system';
+                return { type: 'reboot', target: target, raw: rawBase, risk: 'LOW' };
+            }
+            if (action === 'set_active' || action === '--set-active') {
+                return { type: 'set_active', partition: afterAction[0] || '', raw: rawBase, risk: 'MEDIUM' };
+            }
+            if (action === 'delete-logical-partition') {
+                return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+            }
+            if (action === 'devices') {
+                return { type: 'raw', raw: rawBase, risk: 'LOW' };
+            }
+            return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
         }
 
-
-    elif cmd == 'oem':
-        # oem command (如 oem unlock)
-        oem_cmd = args.strip()
-        return {
-            'type': 'oem',
-            'part': oem_cmd,
-            'raw': raw_line
+        function getRisk(part) {
+            var map = { xbl:'CRITICAL',xbl_config:'CRITICAL',abl:'CRITICAL',bootloader:'CRITICAL',preloader_raw:'CRITICAL',modem:'HIGH',frp:'HIGH',metadata:'HIGH' };
+            return map[(part || '').toLowerCase()] || 'MEDIUM';
         }
 
-    elif cmd == 'boot':
-        _sq = strip_quote
-        _sa = split_args
-        parts = [_sq(x) for x in _sa(args)]
-        image = parts[0] if parts else ''
-        return {
-            'type': 'boot',
-            'part': image,
-            'raw': raw_line
+        // 收集 set
+        var lines = content.split(/\r?\n/);
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (/^setlocal\s+enabledelayedexpansion/i.test(line)) delayedExpansion = true;
+            var setMatch = line.match(/^set\s+"?(\w+)=(.+?)"?\s*$/i);
+            if (setMatch) vars[setMatch[1]] = setMatch[2];
+        }
+        for (var k in vars) vars[k] = resolveVars(vars[k]);
+
+        async function processLines(linesArray, localVars, forStack) {
+            var savedVars = Object.assign({}, vars);
+            if (localVars) Object.assign(vars, localVars);
+            var stack = forStack || [];
+            var idx = 0;
+            var pendingFor = null, pendingIf = null;
+
+            async function executeLine(line) {
+                line = expandAllForVars(line, stack);
+                line = resolveVars(line);
+                // 1. 移除错误处理
+                line = line.replace(/\s*(\|\||&&).*$/i, '').trim();
+                // 2. 提取管道前有效命令
+                var pipeIdx = line.indexOf('|');
+                if (pipeIdx >= 0) line = line.substring(0, pipeIdx).trim();
+                // 3. 移除重定向
+                line = line.replace(/\d*>&\d+/g, '').replace(/>[^ ]*/g, '').trim();
+                if (!line) return;
+                var setMatch = line.match(/^\s*set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (setMatch) { vars[setMatch[1]] = resolveVars(setMatch[2]); return; }
+                var parts = splitCmd(line);
+                if (parts.length === 0) return;
+                parts = parts.map(function(p) { return expandAllForVars(p, stack); });
+                var step = makeStep(parts);
+                if (step) steps.push(step);
+            }
+
+            async function executeForBlock(block) {
+                var items = await expandCollection(block.collection);
+                for (var j = 0; j < items.length; j++) {
+                    vars[block.varName] = items[j];
+                    stack.push({ var: block.varName, value: items[j] });
+                    await processLines(block.body, null, stack);
+                    stack.pop();
+                }
+            }
+
+            async function executeIfBlock(block) {
+                var expandedCond = expandAllForVars(block.condition, stack);
+                expandedCond = resolveVars(expandedCond);
+                if (evalCondition(expandedCond)) {
+                    await processLines(block.body, null, stack);
+                }
+            }
+
+            function evalCondition(cond) {
+                cond = cond.trim();
+                var negated = false;
+                if (/^not\s+/i.test(cond)) { negated = true; cond = cond.replace(/^not\s+/i, '').trim(); }
+                var result;
+                if (/^exist\s+/i.test(cond)) {
+                    result = true;
+                } else if (/^\/i\s+/i.test(cond)) {
+                    var ciMatch = cond.match(/^\/i\s+"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (ciMatch) result = ciMatch[1].toLowerCase() === ciMatch[2].toLowerCase();
+                    else result = false;
+                } else {
+                    var strMatch = cond.match(/^"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (strMatch) result = strMatch[1] === strMatch[2];
+                    else {
+                        var numMatch = cond.match(/^(\S+)\s+(equ|neq|gtr|geq|lss|leq)\s+(\S+)$/i);
+                        if (numMatch) {
+                            var l = parseInt(numMatch[1]), r = parseInt(numMatch[3]);
+                            if (isNaN(l) || isNaN(r)) result = numMatch[2].toLowerCase() === 'equ' ? numMatch[1] === numMatch[3] : numMatch[1] !== numMatch[3];
+                            else {
+                                switch (numMatch[2].toLowerCase()) {
+                                    case 'equ': result = l === r; break;
+                                    case 'neq': result = l !== r; break;
+                                    default: result = false;
+                                }
+                            }
+                        } else if (/^errorlevel\s+\d+$/i.test(cond)) result = false;
+                        else result = true;
+                    }
+                }
+                return negated ? !result : result;
+            }
+
+            async function expandCollection(collection) {
+                collection = collection.replace(/^["']|["']$/g, '');
+                collection = resolveVars(collection);
+                if (/\*|\?/.test(collection)) {
+                    if (fileApi && fileApi.glob) {
+                        var lastSlash = collection.replace(/\\/g, '/').lastIndexOf('/');
+                        var dir = lastSlash >= 0 ? collection.substring(0, lastSlash) : '';
+                        var pattern = lastSlash >= 0 ? collection.substring(lastSlash + 1) : collection;
+                        try {
+                            var files = await fileApi.glob(pattern, dir || romDir);
+                            if (files && files.length) return files.map(f => f.replace(/\\/g, '/'));
+                        } catch(e) {}
+                    }
+                    return [];
+                }
+                return collection.split(/[\s,]+/).filter(Boolean);
+            }
+
+            while (idx < linesArray.length) {
+                var rawLine = linesArray[idx].trim();
+                idx++;
+                if (!rawLine || /^(::|rem\b|@echo|title|color|cls|echo|pause|timeout|chcp|endlocal|goto|exit\b)/i.test(rawLine)) continue;
+                if (rawLine.startsWith('@')) rawLine = rawLine.substring(1).trim();
+
+                if (pendingFor) {
+                    if (rawLine === ')') {
+                        if (pendingFor.depth > 0) { pendingFor.body.push(rawLine); pendingFor.depth--; }
+                        else { await executeForBlock(pendingFor); pendingFor = null; }
+                    } else {
+                        pendingFor.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingFor.depth++;
+                    }
+                    continue;
+                }
+                if (pendingIf) {
+                    if (rawLine === ')') {
+                        if (pendingIf.depth > 0) { pendingIf.body.push(rawLine); pendingIf.depth--; }
+                        else { await executeIfBlock(pendingIf); pendingIf = null; }
+                    } else {
+                        pendingIf.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingIf.depth++;
+                    }
+                    continue;
+                }
+
+                var expanded = expandAllForVars(rawLine, stack);
+                expanded = resolveVars(expanded);
+
+                var forStart = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s*\(\s*$/i);
+                if (forStart) {
+                    pendingFor = { varName: forStart[1], collection: forStart[2], body: [], depth: 0 };
+                    continue;
+                }
+
+                var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
+                if (ifStart) {
+                    if (/^errorlevel\s+\d+$/i.test(ifStart[1])) {
+                        var depth2 = 1;
+                        while (idx < linesArray.length && depth2 > 0) {
+                            var skipLine = linesArray[idx].trim();
+                            idx++;
+                            if (skipLine === ')') depth2--;
+                            else if (/\(\s*$/.test(skipLine)) depth2++;
+                        }
+                        continue;
+                    }
+                    pendingIf = { condition: ifStart[1], body: [], depth: 0 };
+                    continue;
+                }
+
+                var singleFor = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s+(.+)/i);
+                if (singleFor) {
+                    var varName = singleFor[1], collection = singleFor[2], command = singleFor[3];
+                    var items = await expandCollection(collection);
+                    for (var j = 0; j < items.length; j++) {
+                        vars[varName] = items[j];
+                        stack.push({ var: varName, value: items[j] });
+                        var expandedCmd = expandAllForVars(command, stack);
+                        expandedCmd = resolveVars(expandedCmd);
+                        await executeLine(expandedCmd);
+                        stack.pop();
+                    }
+                    continue;
+                }
+
+                var singleIf = expanded.match(/^if\s+(not\s+)?exist\s+"?([^"\s]+)"?\s+(.+)/i);
+                if (singleIf) {
+                    var notExist = !!singleIf[1], path = singleIf[2], action = singleIf[3].replace(/\)\s*$/, '');
+                    if (!notExist) await executeLine(action);
+                    continue;
+                }
+
+                var ifSet = expanded.match(/^if\s+(?:\/i\s+)?["']?!?(\w+)!?["']?\s*==\s*["']?([^"'\s]+)["']?\s+set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (ifSet) {
+                    var leftVal = resolveVars(ifSet[1]);
+                    var rightVal = expandAllForVars(ifSet[2], stack);
+                    if (ifSet[1].toLowerCase() === rightVal.toLowerCase() || leftVal === rightVal) {
+                        vars[ifSet[3]] = ifSet[4];
+                    }
+                    continue;
+                }
+
+                await executeLine(expanded);
+            }
+
+            if (localVars) vars = savedVars;
         }
 
-    elif cmd in ('unlock', 'lock'):
-        return {
-            'type': 'oem',
-            'part': cmd,
-            'raw': raw_line
-        }
-
-    elif cmd == 'continue':
-        return {
-            'type': 'reboot',
-            'part': 'continue',
-            'raw': raw_line
-        }
-
-    elif cmd == 'getvar':
-        _sq = strip_quote
-        _sa = split_args
-        parts = [_sq(x) for x in _sa(args)]
-        var_name = parts[0] if parts else ''
-        return {
-            'type': 'getvar',
-            'part': var_name,
-            'raw': raw_line,
-            'note': '查询设备信息'
-        }
-
-    elif cmd == 'devices':
-        return {
-            'type': 'devices',
-            'part': '',
-            'raw': raw_line,
-            'note': '检测 fastboot 设备连接'
-        }
-
-    return None
+        await processLines(lines, null, []);
+        return { steps: steps };
+    }
+};

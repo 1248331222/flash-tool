@@ -10,8 +10,9 @@ module.exports = {
         // ========== 工具函数 ==========
         function resolveVars(text) {
             text = text.replace(/%~dp0/gi, romDir + '/');
+            // 保留 %* 和 %1-%9
             text = text.replace(/%(\w+)%/g, function(_, name) {
-                if (name === '*' || /^[1-9]$/.test(name)) return _; // 保留命令行占位符
+                if (name === '*' || /^[1-9]$/.test(name)) return _;
                 return vars[name] !== undefined ? vars[name] : _;
             });
             if (delayedExpansion) {
@@ -28,7 +29,6 @@ module.exports = {
             return romDir ? romDir.replace(/\/+$/, '') + '/' + p : p;
         }
 
-        // 展开 for 变量（预留，本脚本未使用）
         function expandAllForVars(str, forStack) {
             if (!forStack.length) return str;
             var varNames = forStack.map(function(ctx) { return ctx.var; });
@@ -69,58 +69,59 @@ module.exports = {
             return parts;
         }
 
-        function makeStep(parts) {
+        function makeStep(parts, prefixParams) {
             if (!parts || parts.length === 0) return null;
             var bin = parts[0].replace(/\\/g, '/').split('/').pop().replace(/\.exe$/i, '').toLowerCase();
             if (bin !== 'fastboot' && bin !== 'adb') return null;
             var rest = parts.slice(1);
             var globalParams = [];
             while (rest.length && rest[0].startsWith('--')) globalParams.push(rest.shift());
+            if (prefixParams) globalParams = prefixParams.split(/\s+/).concat(globalParams);
+            var action = rest[0] ? rest[0].toLowerCase() : '';
 
-            // 跳过占位符 %* 和 %1-%9
-            var skippedPlaceholders = [];
-            while (rest.length && /^%[\*1-9]$/.test(rest[0])) skippedPlaceholders.push(rest.shift());
-            if (rest.length === 0) return null;
-
-            var action = rest[0].toLowerCase();
-            var afterAction = rest.slice(1);
-            var allParts = skippedPlaceholders.concat(rest);
-            var rawBase = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' ' + allParts.join(' ');
-
-            // getvar 不生成步骤
-            if (action === 'getvar') return null;
-
-            if (action === '-w') return { type: 'raw', raw: rawBase, risk: 'HIGH' };
+            if (action === '-w') {
+                return { type: 'raw', raw: 'fastboot -w', risk: 'HIGH' };
+            }
+            if (action === 'getvar') {
+                return { type: 'getvar', raw: 'fastboot ' + rest.join(' '), risk: 'LOW' };
+            }
             if (action === 'flash') {
-                var partition = afterAction[0] || '';
-                var imagePath = normalizePath(afterAction[1] || '');
-                var extraParams = afterAction.slice(2).join(' ');
+                var partition = rest[1] || '';
+                var imagePath = normalizePath(rest[2] || '');
+                var extraParams = rest.slice(3).join(' ');
+                var raw = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' flash ' + partition + ' ' + imagePath + (extraParams ? ' ' + extraParams : '');
                 return {
                     type: 'flash', partition: partition, imagePath: imagePath,
-                    raw: rawBase, risk: getRisk(partition),
+                    raw: raw, risk: getRisk(partition),
                     prefixParams: globalParams.join(' ') || undefined,
                     params: extraParams || undefined
                 };
             }
-            if (action === 'erase') return { type: 'erase', partition: afterAction[0] || '', raw: rawBase, risk: 'HIGH' };
-            if (action === 'reboot') {
-                var target = afterAction.join(' ') || 'system';
-                return { type: 'reboot', target: target, raw: rawBase, risk: 'LOW' };
+            if (action === 'erase') {
+                return { type: 'erase', partition: rest[1] || '', raw: 'fastboot erase ' + rest[1], risk: 'HIGH' };
             }
-            if (action === 'set_active' || action === '--set-active')
-                return { type: 'set_active', partition: afterAction[0] || '', raw: rawBase, risk: 'MEDIUM' };
-            if (action === 'delete-logical-partition')
-                return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
-            if (action === 'devices') return { type: 'raw', raw: rawBase, risk: 'LOW' };
-            return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+            if (action === 'reboot') {
+                var target = rest.slice(1).join(' ') || 'system';
+                return { type: 'reboot', target: target, raw: 'fastboot reboot' + (target !== 'system' ? ' ' + target : ''), risk: 'LOW' };
+            }
+            if (action === 'set_active' || action === '--set-active') {
+                return { type: 'set_active', partition: rest[1] || '', raw: 'fastboot set_active ' + rest[1], risk: 'MEDIUM' };
+            }
+            if (action === 'delete-logical-partition') {
+                return { type: 'raw', raw: 'fastboot delete-logical-partition ' + rest[1], risk: 'MEDIUM' };
+            }
+            if (action === 'devices') {
+                return { type: 'raw', raw: 'fastboot devices', risk: 'LOW' };
+            }
+            return { type: 'raw', raw: 'fastboot ' + rest.join(' '), risk: 'MEDIUM' };
         }
 
-        function getRisk(p) {
+        function getRisk(part) {
             var map = { xbl:'CRITICAL',xbl_config:'CRITICAL',abl:'CRITICAL',bootloader:'CRITICAL',preloader_raw:'CRITICAL',modem:'HIGH',frp:'HIGH',metadata:'HIGH' };
-            return map[(p || '').toLowerCase()] || 'MEDIUM';
+            return map[part.toLowerCase()] || 'MEDIUM';
         }
 
-        // 第一阶段：收集普通 set 变量
+        // ========== 第一阶段：收集 set 变量 ==========
         var lines = content.split(/\r?\n/);
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
@@ -130,70 +131,194 @@ module.exports = {
         }
         for (var k in vars) vars[k] = resolveVars(vars[k]);
 
-        // 第二阶段：全量提取（无条件评估）
-        var i = 0;
-        // 括号深度计数器（用于跳过条件块的开头，但不影响内部命令提取）
-        var ifDepth = 0;       // 当前 if 块深度（仅用于跟踪，不用于跳过）
-        var skipMode = false;  // 是否处于被跳过的块中（始终 false，因为我们不跳过）
+        // ========== 第二阶段：状态机 + 递归处理 ==========
+        async function processLines(linesArray, localVars, forStack) {
+            var savedVars = Object.assign({}, vars);
+            if (localVars) Object.assign(vars, localVars);
+            var stack = forStack || [];
+            var idx = 0;
+            var pendingFor = null, pendingIf = null;
 
-        while (i < lines.length) {
-            var rawLine = lines[i].trim();
-            i++;
-
-            // 跳过无关行
-            if (!rawLine || /^(::|rem\b|@echo|title|color|cls|echo|pause|timeout|chcp|endlocal|goto|exit\b)/i.test(rawLine)) continue;
-            if (rawLine.startsWith('@')) rawLine = rawLine.substring(1).trim();
-            if (/^:\w+/.test(rawLine)) continue;
-            if (/^set\s+\/p\s+/i.test(rawLine)) continue;
-            if (/^set\s+/i.test(rawLine)) continue; // 普通 set 已收集
-
-            var expanded = resolveVars(rawLine);
-
-            // 处理 if 块开始（不评估条件，直接进入块，提取内部命令）
-            var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
-            if (ifStart) {
-                ifDepth++;      // 进入一层 if
-                continue;       // 跳过 if 行本身
+            async function executeLine(line) {
+                line = expandAllForVars(line, stack);
+                line = resolveVars(line);
+                // ★ 精确过滤：仅跳过明显是管道/校验的行，不误伤正常命令
+                if (/^(fastboot|adb)\s+.+\|/.test(line) || /findstr/i.test(line)) return;
+                var setMatch = line.match(/^\s*set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (setMatch) { vars[setMatch[1]] = resolveVars(setMatch[2]); return; }
+                // 在提取命令前，先移除可能存在的无害重定向（如 >nul 2>&1），但保留主命令
+                var cleanLine = line.replace(/>.*$/i, '').trim();
+                if (!cleanLine) return;
+                var parts = splitCmd(cleanLine);
+                if (parts.length === 0) return;
+                parts = parts.map(function(p) { return expandAllForVars(p, stack); });
+                var step = makeStep(parts);
+                if (step) steps.push(step);
             }
 
-            // 处理 else / else if
-            if (/^\)?\s*else\b/i.test(expanded)) {
-                // 只是块结构的一部分，继续处理（不增加步骤）
-                var elseIfMatch = expanded.match(/^\)?\s*else\s+if\s+(.+?)\s*\(\s*$/i);
-                if (elseIfMatch) {
-                    ifDepth++;  // 进入嵌套 if
+            async function executeForBlock(block) {
+                var items = await expandCollection(block.collection);
+                for (var j = 0; j < items.length; j++) {
+                    vars[block.varName] = items[j];
+                    stack.push({ var: block.varName, value: items[j] });
+                    await processLines(block.body, null, stack);
+                    stack.pop();
                 }
-                continue;
             }
 
-            // 闭合括号
-            if (rawLine === ')') {
-                if (ifDepth > 0) ifDepth--;
-                continue;
+            async function executeIfBlock(block) {
+                var expandedCond = expandAllForVars(block.condition, stack);
+                expandedCond = resolveVars(expandedCond);
+                if (evalCondition(expandedCond)) {
+                    await processLines(block.body, null, stack);
+                }
             }
 
-            // 清理管道、重定向和错误处理（||、&&）
-            var cleanLine = expanded
-                .replace(/\s*(\|\||&&).*$/i, '').trim();
-            var pipeIdx = cleanLine.indexOf('|');
-            if (pipeIdx >= 0) cleanLine = cleanLine.substring(0, pipeIdx).trim();
-            cleanLine = cleanLine.replace(/\d*>&\d+/g, '').replace(/>[^ ]*/g, '').trim();
-            if (!cleanLine) continue;
+            function evalCondition(cond) {
+                cond = cond.trim();
+                var negated = false;
+                if (/^not\s+/i.test(cond)) { negated = true; cond = cond.replace(/^not\s+/i, '').trim(); }
+                var result;
+                if (/^exist\s+/i.test(cond)) {
+                    result = true;
+                } else if (/^\/i\s+/i.test(cond)) {
+                    var ciMatch = cond.match(/^\/i\s+"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (ciMatch) result = ciMatch[1].toLowerCase() === ciMatch[2].toLowerCase();
+                    else result = false;
+                } else {
+                    var strMatch = cond.match(/^"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (strMatch) result = strMatch[1] === strMatch[2];
+                    else {
+                        var numMatch = cond.match(/^(\S+)\s+(equ|neq|gtr|geq|lss|leq)\s+(\S+)$/i);
+                        if (numMatch) {
+                            var l = parseInt(numMatch[1]), r = parseInt(numMatch[3]);
+                            if (isNaN(l) || isNaN(r)) result = numMatch[2].toLowerCase() === 'equ' ? numMatch[1] === numMatch[3] : numMatch[1] !== numMatch[3];
+                            else {
+                                switch (numMatch[2].toLowerCase()) {
+                                    case 'equ': result = l === r; break;
+                                    case 'neq': result = l !== r; break;
+                                    default: result = false;
+                                }
+                            }
+                        } else if (/^errorlevel\s+\d+$/i.test(cond)) result = false;
+                        else result = true;
+                    }
+                }
+                return negated ? !result : result;
+            }
 
-            // 分割命令并生成步骤
-            var parts = splitCmd(cleanLine);
-            if (parts.length === 0) continue;
-            var step = makeStep(parts);
-            if (step) steps.push(step);
+            async function expandCollection(collection) {
+                collection = collection.replace(/^["']|["']$/g, '');
+                collection = resolveVars(collection);
+                if (/\*|\?/.test(collection)) {
+                    if (fileApi && fileApi.glob) {
+                        var lastSlash = collection.replace(/\\/g, '/').lastIndexOf('/');
+                        var dir = lastSlash >= 0 ? collection.substring(0, lastSlash) : '';
+                        var pattern = lastSlash >= 0 ? collection.substring(lastSlash + 1) : collection;
+                        try {
+                            var files = await fileApi.glob(pattern, dir || romDir);
+                            if (files && files.length) return files.map(f => f.replace(/\\/g, '/'));
+                        } catch(e) {}
+                    }
+                    return [];
+                }
+                return collection.split(/[\s,]+/).filter(Boolean);
+            }
+
+            while (idx < linesArray.length) {
+                var rawLine = linesArray[idx].trim();
+                idx++;
+                if (!rawLine || /^(::|rem\b|@echo|title|color|cls|echo|pause|timeout|chcp|endlocal|goto|exit\b)/i.test(rawLine)) continue;
+                if (rawLine.startsWith('@')) rawLine = rawLine.substring(1).trim();
+
+                if (pendingFor) {
+                    if (rawLine === ')') {
+                        if (pendingFor.depth > 0) { pendingFor.body.push(rawLine); pendingFor.depth--; }
+                        else { await executeForBlock(pendingFor); pendingFor = null; }
+                    } else {
+                        pendingFor.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingFor.depth++;
+                    }
+                    continue;
+                }
+                if (pendingIf) {
+                    if (rawLine === ')') {
+                        if (pendingIf.depth > 0) { pendingIf.body.push(rawLine); pendingIf.depth--; }
+                        else { await executeIfBlock(pendingIf); pendingIf = null; }
+                    } else {
+                        pendingIf.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingIf.depth++;
+                    }
+                    continue;
+                }
+
+                var expanded = expandAllForVars(rawLine, stack);
+                expanded = resolveVars(expanded);
+
+                var forStart = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s*\(\s*$/i);
+                if (forStart) {
+                    pendingFor = { varName: forStart[1], collection: forStart[2], body: [], depth: 0 };
+                    continue;
+                }
+
+                // ★ 兼容 if errorlevel 等多行块
+                var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
+                if (ifStart) {
+                    // 跳过纯 errorlevel 块，但保留其块结构以防止括号匹配错误
+                    if (/^errorlevel\s+\d+$/i.test(ifStart[1])) {
+                        // 跳过整个块
+                        var depth2 = 1;
+                        while (idx < linesArray.length && depth2 > 0) {
+                            var skipLine = linesArray[idx].trim();
+                            idx++;
+                            if (skipLine === ')') depth2--;
+                            else if (/\(\s*$/.test(skipLine)) depth2++;
+                        }
+                        continue;
+                    }
+                    pendingIf = { condition: ifStart[1], body: [], depth: 0 };
+                    continue;
+                }
+
+                var singleFor = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s+(.+)/i);
+                if (singleFor) {
+                    var varName = singleFor[1], collection = singleFor[2], command = singleFor[3];
+                    var items = await expandCollection(collection);
+                    for (var j = 0; j < items.length; j++) {
+                        vars[varName] = items[j];
+                        stack.push({ var: varName, value: items[j] });
+                        var expandedCmd = expandAllForVars(command, stack);
+                        expandedCmd = resolveVars(expandedCmd);
+                        await executeLine(expandedCmd);
+                        stack.pop();
+                    }
+                    continue;
+                }
+
+                var singleIf = expanded.match(/^if\s+(not\s+)?exist\s+"?([^"\s]+)"?\s+(.+)/i);
+                if (singleIf) {
+                    var notExist = !!singleIf[1], path = singleIf[2], action = singleIf[3].replace(/\)\s*$/, '');
+                    if (!notExist) await executeLine(action);
+                    continue;
+                }
+
+                var ifSet = expanded.match(/^if\s+(?:\/i\s+)?["']?!?(\w+)!?["']?\s*==\s*["']?([^"'\s]+)["']?\s+set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (ifSet) {
+                    var leftVal = resolveVars(ifSet[1]);
+                    var rightVal = expandAllForVars(ifSet[2], stack);
+                    if (ifSet[1].toLowerCase() === rightVal.toLowerCase() || leftVal === rightVal) {
+                        vars[ifSet[3]] = ifSet[4];
+                    }
+                    continue;
+                }
+
+                await executeLine(expanded);
+            }
+
+            if (localVars) vars = savedVars;
         }
 
-        // 检查是否有 %* 占位符，设置参数提示
-        var hasParams = /%\*|%[1-9]/.test(content);
-
-        return {
-            steps: steps,
-            hasScriptParams: hasParams,
-            scriptParamHint: hasParams ? '如需要，请在参数框输入额外 fastboot 参数' : ''
-        };
+        await processLines(lines, null, []);
+        return { steps: steps };
     }
 };

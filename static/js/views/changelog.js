@@ -1,7 +1,15 @@
 // flash_tool/static/js/changelog.js
 // 更新日志内容（从 index.html 提取，减少 HTML 体积）
 
-const CHANGELOG_TEXT = `v4.0.6 (2026-07-19)
+const CHANGELOG_TEXT = `v4.0.7 (2026-07-19)
+- 修复：WebUSB 模式下工作台命令无法执行（始终走后端 /api/fastboot 接口）
+  · 新增 _wbRunFastbootCommand 辅助函数，自动路由 WebUSB/后端模式
+  · WebUSB 模式下 flash 命令通过后端 API 读取镜像字节再经 WebUSB 刷写
+  · WebUSB 模式下 erase/reboot/getvar/oem/flashing 等命令直连 WebUSB 执行
+  · delete-logical-partition（COW 清理）在 WebUSB 模式下给出友好提示
+  · 后端模式 fetch 也补全 App.backendUrl 前缀，修复 GitHub Pages 部署问题
+
+v4.0.6 (2026-07-19)
 - 新增：自定义命令支持会话工作目录持久化（cd 命令真正生效）
   · 纯 cd 命令会更新会话工作目录，后续命令在新目录下执行
   · 支持 cd /path、cd ~、cd ../path、cd relative/path 等形式

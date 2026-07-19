@@ -1,172 +1,273 @@
-// flash_tool/static/js/safe-dom.js
-// ============ 安全 DOM 访问层 ============
-// 目标：解决前端「稍微改动就崩溃」的核心问题。
-// 1. 提供 $(id) 安全获取元素；元素不存在时返回空代理，避免 null 抛错。
-// 2. 可选全局补丁 document.getElementById，使现有代码自动获得保护（过渡方案）。
-// 3. 所有缺失元素都会在控制台输出警告，便于开发者定位。
+// flash_tool/static/js/state.js
+// ============ 应用状态（集中管理） ============
+let _savedMode;
+try { _savedMode = localStorage.getItem('run_mode'); } catch(e) { _savedMode = null; }
+const App = {
+    // 连接状态
+    socket: null,
+    backendReady: false,
+    realtimeConnected: false,
+    appRunMode: _savedMode || 'backend',
+    backendUrl: '',
+    envStatusBaseText: '正在连接后端服务...',
+    envStatusBaseClass: 'env-status',
 
-(function(global) {
-    'use strict';
+    // 设备状态
+    deviceConnected: false,
+    deviceMode: 'none',
+    canAdb: false,
+    canFastboot: false,
+    currentSlot: '',
+    isAbDevice: false,
+    blUnlocked: null,
+    blStatusText: 'Bootloader状态：未查询',
+    deviceInfo: {},
 
-    const noop = function(){};
+    // WebUSB
+    webusbAdb: null,
+    webusbAdbReady: false,
+    webusbFastboot: null,
+    webusbFastbootReady: false,
+    webusbScriptBaseDir: '',
+    webusbScriptFileMap: new Map(),
 
-    function createStyleProxy() {
-        return new Proxy({}, {
-            get(t, p) {
-                if (p === 'cssText') return '';
-                if (p === 'length') return 0;
-                if (p === 'item') return function(){ return ''; };
-                if (p === 'getPropertyValue') return function(){ return ''; };
-                return '';
-            },
-            set(t, p, v) { return true; },
-            deleteProperty(t, p) { return true; }
-        });
-    }
+    // 线刷任务
+    stepList: [],
+    customPartList: [],
+    pendingResumeIndex: 0,
 
-    function createClassList() {
-        return {
-            add: noop,
-            remove: noop,
-            toggle: function(){ return false; },
-            contains: function(){ return false; },
-            replace: noop,
-            removeAll: noop,
-            length: 0,
-            item: function(){ return null; },
-            value: ''
-        };
-    }
+    // UI 状态
+    wakeLock: null,
+    confirmTimer: null,
+    pageLogBoxes: {},
 
+    // ============ 事件系统 ============
     /**
-     * 为缺失的 DOM 元素创建安全空代理。
-     * 读取任意属性时返回空字符串/空数组/noop 等安全默认值，写入操作静默成功，避免空引用抛错。
-     * @param {string} id - 缺失的元素 id（仅用于调试，不实际查询 DOM）。
-     * @returns {Proxy} 可安全用于链式 DOM 操作的空代理对象。
+     * 轻量级发布/订阅事件总线，用于模块间一对多广播。
+     * 支持 on/off/once/emit 四种操作，与 Node.js EventEmitter 语义相近。
+     * @namespace App.event
      */
-    function createNullProxy(id) {
-        const styleProxy = createStyleProxy();
-        const classListObj = createClassList();
-        return new Proxy({}, {
-            get(t, p) {
-                if (p === 'style') return styleProxy;
-                if (p === 'classList') return classListObj;
-                if (p === 'dataset') return {};
-                if (p === 'children') return [];
-                if (p === 'childNodes') return [];
-                if (p === 'options') return [];
-                if (p === 'selectedOptions') return [];
-                if (['addEventListener','removeEventListener','setAttribute','removeAttribute','focus','blur','click','scrollIntoView','insertAdjacentHTML','insertAdjacentElement','insertAdjacentText','setSelectionRange','reset','submit','scrollTo','scrollBy'].indexOf(p) !== -1) return noop;
-                if (['querySelector','closest','firstElementChild','lastElementChild','nextElementSibling','previousElementSibling'].indexOf(p) !== -1) return function(){ return null; };
-                if (['querySelectorAll','getElementsByTagName','getElementsByClassName'].indexOf(p) !== -1) return function(){ return []; };
-                if (['appendChild','insertBefore','removeChild','replaceChild','append','prepend','before','after','replaceWith'].indexOf(p) !== -1) return function(){ return null; };
-                // 对 value / textContent / innerHTML / checked / disabled 等返回安全默认值
-                return t[p] !== undefined ? t[p] : '';
-            },
-            set(t, p, v) { return true; },
-            deleteProperty(t, p) { return true; }
-        });
-    }
-
-    const originalGetElementById = document.getElementById.bind(document);
-
-    /**
-     * 安全 DOM 访问管理器。
-     * 提供带缓存的元素查询，元素不存在时返回空代理；支持对 document.getElementById 打全局补丁。
-     * @namespace SafeDOM
-     */
-    const SafeDOM = {
-        _cache: new Map(),
-        _patched: false,
+    event: {
+        _listeners: {},
 
         /**
-         * 安全获取 DOM 元素（自动去掉 # 前缀）。
-         * 元素存在时缓存并返回真实元素；不存在时输出警告并返回空代理，避免调用链抛错。
-         * @param {string} id - 元素 id，可带或不带 # 前缀。
-         * @returns {HTMLElement|Proxy} 真实元素或空代理对象。
+         * 订阅指定事件。
+         * @param {string} evt - 事件名。
+         * @param {function} fn - 事件触发时执行的回调。
+         * @returns {Object} 事件总线自身，支持链式调用。
          */
-        get(id) {
-            // 兼容调用者传入 #id 或 id
-            const cleanId = String(id).replace(/^#/, '');
-            if (this._cache.has(cleanId)) return this._cache.get(cleanId);
-            const el = originalGetElementById(cleanId);
-            if (!el) {
-                console.warn('[SafeDOM] 元素 #' + cleanId + ' 不存在');
-                return createNullProxy(cleanId);
-            }
-            this._cache.set(cleanId, el);
-            return el;
+        on(evt, fn) {
+            if (!this._listeners[evt]) this._listeners[evt] = [];
+            this._listeners[evt].push(fn);
+            return this;
+        },
+        /**
+         * 取消订阅指定事件。
+         * @param {string} evt - 事件名。
+         * @param {function} fn - 要移除的回调引用。
+         * @returns {Object} 事件总线自身，支持链式调用。
+         */
+        off(evt, fn) {
+            const list = this._listeners[evt];
+            if (!list) return this;
+            this._listeners[evt] = list.filter(f => f !== fn);
+            return this;
         },
 
         /**
-         * 直接获取原始 DOM 元素，不做安全代理和缓存。
-         * 用于必须区分元素是否真实存在的场景。
-         * @param {string} id - 元素 id。
-         * @returns {HTMLElement|null} 真实元素或 null。
+         * 一次性订阅：回调执行一次后自动取消订阅。
+         * @param {string} evt - 事件名。
+         * @param {function} fn - 事件触发时执行的回调。
+         * @returns {Object} 事件总线自身，支持链式调用。
          */
-        getRaw(id) {
-            return originalGetElementById(id);
+        once(evt, fn) {
+            const wrapper = (...args) => { fn(...args); this.off(evt, wrapper); };
+            return this.on(evt, wrapper);
         },
 
         /**
-         * 判断指定 id 的元素是否真实存在于 DOM 中。
-         * @param {string} id - 元素 id，可带或不带 # 前缀。
-         * @returns {boolean} 存在返回 true，否则返回 false。
+         * 触发指定事件，同步调用所有订阅者。
+         * @param {string} evt - 事件名。
+         * @param {...*} args - 传递给订阅回调的参数。
+         * @returns {Object} 事件总线自身，支持链式调用。
          */
-        exists(id) {
-            return !!originalGetElementById(String(id).replace(/^#/, ''));
-        },
-
-        clearCache() {
-            this._cache.clear();
-        },
-
-        /**
-         * 安全执行：元素存在时才调用回调函数。
-         * 常用于对可选 DOM 元素执行一次性初始化或副作用操作。
-         * @param {string} id - 元素 id，可带或不带 # 前缀。
-         * @param {function(HTMLElement): void} fn - 元素存在时执行的回调。
-         * @returns {HTMLElement|null} 真实元素或 null。
-         */
-        ifExists(id, fn) {
-            const el = originalGetElementById(String(id).replace(/^#/, ''));
-            if (el && typeof fn === 'function') fn(el);
-            return el;
-        },
-
-        /**
-         * 全局补丁：重写 document.getElementById，使其在元素缺失时也返回空代理。
-         * 幂等调用：已打补丁时直接返回，避免重复包装。
-         */
-        enableGlobalPatch() {
-            if (this._patched) return;
-            this._patched = true;
-            const self = this;
-            document.getElementById = function(id) {
-                const cleanId = String(id).replace(/^#/, '');
-                const el = originalGetElementById(cleanId);
-                if (!el) {
-                    console.warn('[SafeDOM] 元素 #' + cleanId + ' 不存在（全局补丁）');
-                    return createNullProxy(cleanId);
-                }
-                return el;
-            };
-            console.log('[SafeDOM] document.getElementById 已启用安全补丁');
-        },
-
-        // 禁用全局补丁（调试用）
-        disableGlobalPatch() {
-            if (!this._patched) return;
-            document.getElementById = originalGetElementById;
-            this._patched = false;
+        emit(evt, ...args) {
+            (this._listeners[evt] || []).forEach(fn => fn(...args));
+            return this;
         }
-    };
+    },
 
-    global.SafeDOM = SafeDOM;
-    global.$ = SafeDOM.get.bind(SafeDOM);
+    // ============ 重构新增：状态订阅系统（渐进采用） ============
+    _subscribers: {},
 
-    // 默认启用全局补丁，保护现有 355+ 处 document.getElementById 调用
-    SafeDOM.enableGlobalPatch();
-    console.log('[safe-dom.js] 加载完成，全局补丁已启用');
+    /**
+     * 读取应用状态。
+     * 支持点分路径（如 'deviceInfo.product'）；不传参数返回 App 自身。
+     * @param {string} [key] - 状态键名或点分路径。
+     * @returns {*} 对应状态的当前值。
+     */
+    get(key) {
+        if (key === undefined) return this;
+        return this._getPath(key);
+    },
+    _getPath(key) {
+        if (typeof key !== 'string' || key.indexOf('.') === -1) return this[key];
+        const parts = key.split('.');
+        let cur = this;
+        for (const p of parts) {
+            if (cur == null || typeof cur !== 'object') return undefined;
+            cur = cur[p];
+        }
+        return cur;
+    },
+    _setPath(key, value) {
+        if (typeof key !== 'string' || key.indexOf('.') === -1) {
+            this[key] = value;
+            return;
+        }
+        const parts = key.split('.');
+        let cur = this;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const p = parts[i];
+            if (!cur[p] || typeof cur[p] !== 'object') cur[p] = {};
+            cur = cur[p];
+        }
+        cur[parts[parts.length - 1]] = value;
+    },
+    _notify(key, value, oldValue) {
+        (this._subscribers[key] || []).forEach(fn => {
+            try { fn(value, oldValue, key); } catch(e) { console.error('[App.set] 订阅者执行失败:', e); }
+        });
+    },
+    /**
+     * 设置应用状态并通知所有订阅者。
+     * 支持点分路径；设置成功后会触发对应 key 的订阅回调（含新旧值）。
+     * @param {string} key - 状态键名或点分路径。
+     * @param {*} value - 要设置的新值。
+     * @returns {Object} App 自身，支持链式调用。
+     */
+    set(key, value) {
+        const oldValue = this._getPath(key);
+        this._setPath(key, value);
+        this._notify(key, value, oldValue);
+        return this;
+    },
 
-})(window);
+    /**
+     * 订阅指定状态的变化。
+     * 注册时会立即以当前值执行一次回调，便于初始化同步。
+     * @param {string} key - 状态键名或点分路径。
+     * @param {function(*, *, string): void} fn - 回调参数为新值、旧值、键名。
+     * @returns {function} 取消订阅的函数。
+     */
+    subscribe(key, fn) {
+        if (!this._subscribers[key]) this._subscribers[key] = [];
+        this._subscribers[key].push(fn);
+        // 立即触发一次，让订阅者获得当前值
+        try { fn(this._getPath(key), undefined, key); } catch(e) { console.error('[App.subscribe] 初始回调失败:', e); }
+        return () => {
+            this._subscribers[key] = this._subscribers[key].filter(f => f !== fn);
+        };
+    },
+    /**
+     * 通过 action 对象批量更新应用状态。
+     * 内置 DEVICE_STATUS/RUN_MODE/STEP_LIST/BACKEND_READY/PROGRESS 等标准 action 类型，
+     * 未知类型会回退为 App.set(type, payload)。
+     * @param {Object} action - 必须包含 type 字段的动作对象。
+     * @param {string} action.type - 动作类型。
+     * @param {*} [action.payload] - 动作载荷。
+     * @returns {Object} App 自身，支持链式调用。
+     */
+    dispatch(action) {
+        if (!action || !action.type) {
+            console.warn('[App.dispatch] action 必须包含 type 字段');
+            return this;
+        }
+        const { type, payload } = action;
+        switch (type) {
+            case 'DEVICE_STATUS':
+                if (payload.connected !== undefined) this.set('deviceConnected', payload.connected);
+                if (payload.mode !== undefined) this.set('deviceMode', payload.mode);
+                if (payload.canAdb !== undefined) this.set('canAdb', payload.canAdb);
+                if (payload.canFastboot !== undefined) this.set('canFastboot', payload.canFastboot);
+                if (payload.currentSlot !== undefined) this.set('currentSlot', payload.currentSlot);
+                if (payload.isAbDevice !== undefined) this.set('isAbDevice', payload.isAbDevice);
+                if (payload.blUnlocked !== undefined) this.set('blUnlocked', payload.blUnlocked);
+                if (payload.blStatusText !== undefined) this.set('blStatusText', payload.blStatusText);
+                if (payload.deviceInfo !== undefined) this.set('deviceInfo', payload.deviceInfo);
+                break;
+            case 'RUN_MODE':
+                this.set('appRunMode', payload);
+                break;
+            case 'STEP_LIST':
+                this.set('stepList', payload);
+                break;
+            case 'BACKEND_READY':
+                this.set('backendReady', payload);
+                break;
+            case 'PROGRESS':
+                this.set('progress', payload);
+                break;
+            default:
+                this.set(type, payload);
+        }
+        return this;
+    }
+};
+
+// 便捷访问别名（保持向后兼容，后续可逐步迁移）
+// 使用 SafeDOM 获取，即使元素不存在也不会抛错
+let logBox, envStatusEl, stepListEl, batchTip, progressContainer, progressBar, progressText, progressLabel;
+
+/**
+ * 双向同步别名：将全局 window 上的旧变量名映射到 App 状态的 getter/setter。
+ * 读取时返回 App 中对应字段；写入时通过 App.set 更新并触发订阅。
+ * 该机制保证旧代码无需改动即可兼容新的集中式状态管理。
+ */
+['socket','stepList','customPartList','deviceConnected','backendReady',
+ 'deviceMode','canAdb','canFastboot','appRunMode','currentSlot','isAbDevice',
+ 'blUnlocked','blStatusText','deviceInfo','pendingResumeIndex','wakeLock',
+ 'confirmTimer','pageLogBoxes','realtimeConnected','envStatusBaseText',
+ 'envStatusBaseClass','webusbAdb','webusbAdbReady','webusbFastboot',
+ 'webusbFastbootReady','webusbScriptBaseDir','webusbScriptFileMap'
+].forEach(key => {
+    Object.defineProperty(window, key, {
+        get() { return App[key]; },
+        set(v) { App.set(key, v); },
+        enumerable: true, configurable: true
+    });
+});
+
+// 兼容别名：BACKEND_API_URL → App.backendUrl
+Object.defineProperty(window, 'BACKEND_API_URL', {
+    get() { return App.backendUrl; },
+    set(v) { App.set('backendUrl', v); },
+    enumerable: true, configurable: true
+});
+
+// ============ 工作台状态变量 ============
+// 工作台已精简（v3.3.0），仅保留 Fastboot 快捷命令功能，无需全局状态变量
+// 后续重构时会重新添加需要的状态变量
+
+// ============ 线刷批量任务状态变量 ============
+let batchRunning = false;
+let batchPaused = false;
+let batchCurrentIndex = 0;
+let batchTaskId = null;
+let selectedUsbDevice = null;
+let romImageCache = {};
+
+// ============ 模块初始化 ============
+Modules.register('state', [], function initStateModule() {
+    logBox = $('logBox');
+    envStatusEl = $('envStatus');
+    stepListEl = $('stepList');
+    batchTip = $('batchTip');
+    progressContainer = $('progressContainer');
+    progressBar = $('progressBar');
+    progressText = $('progressText');
+    progressLabel = $('progressLabel');
+
+    console.log('[state] 应用状态模块已初始化');
+    return true;
+});

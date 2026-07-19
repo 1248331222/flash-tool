@@ -1,408 +1,147 @@
 /**
  * ============================================================
- * 天树刷机 (Skytree Flasher) — <flash-panel> 线刷组件
- * 
- * 功能：ROM 选择 → 解压 → 解析脚本 → 执行线刷
- * 隔离性：Shadow DOM (closed)，完全自包含
+ * 天树刷机 — <version-panel> 版本信息组件（原版 UI）
  * ============================================================
  */
-
-class FlashPanel extends HTMLElement {
-  static get observedAttributes() {
-    return ['backend-url'];
-  }
-
+class VersionPanel extends HTMLElement {
   constructor() {
     super();
-    this._shadow = this.attachShadow({ mode: 'closed' });
-    this._state = {
-      backendUrl: this.getAttribute('backend-url') || '',
-      roms: [],
-      projects: [],
-      scripts: [],
-      steps: [],
-      selectedRom: null,
-      selectedProject: null,
-      selectedScript: null,
-      flashHistory: [],
-    };
+    this._root = this.attachShadow({ mode: 'closed' });
+    this._state = { version: '...', updateUrl: '', backendUrl: '' };
+    try { this._state.backendUrl = localStorage.getItem('backend_api_url') || ''; } catch(e) {}
     this._render();
-    this._bindEvents();
   }
-
-  connectedCallback() {
-    this._unsub = SkytreeBus.on('backend:changed', (d) => {
-      this._state.backendUrl = d.url;
-    });
-  }
-
-  disconnectedCallback() {
-    if (this._unsub) this._unsub();
-  }
+  connectedCallback() { this._fetchVersion(); this._renderChangelog(); this._unsub = Bus.on('backend:changed', d => { this._state.backendUrl = d.url; }); }
+  disconnectedCallback() { if (this._unsub) this._unsub(); }
 
   _render() {
-    this._shadow.innerHTML = `
-      <style>
-        :host { display: block; }
-        h3 { font-size: 15px; margin: 0 0 8px 0; }
-        h4 { font-size: 13px; margin: 8px 0; }
+    this._root.innerHTML = `
+<style>
+:host { display:block; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color: var(--text-primary,#fff); }
+h3 { font-size:15px; margin:0 0 10px 0; }
+.btn { padding:6px 14px; border:none; border-radius:8px; font-size:12px; cursor:pointer; background:var(--accent-blue,#0a84ff); color:#fff; font-family:inherit; }
+.btn.small { padding:5px 10px; font-size:11px; }
+.btn.secondary { background:var(--bg-tertiary,#2c2c2e); color:var(--text-primary,#fff); }
+.btn.secondary:hover { opacity:0.8; }
+.btn:disabled { opacity:0.4; cursor:not-allowed; }
 
-        .btn {
-          padding: 6px 14px; border: none; border-radius: 8px;
-          font-size: 12px; cursor: pointer;
-          background: var(--accent-blue, #0a84ff); color: #fff;
-        }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-secondary { background: var(--bg-tertiary, #2c2c2e); color: var(--text-primary, #fff); }
-        .btn-warn { background: var(--accent-orange, #ff9f0a); color: #fff; }
-        .btn-danger { background: var(--accent-red, #ff453a); color: #fff; }
-        .btn-small { padding: 4px 10px; font-size: 11px; }
+.version-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.version-card { background:var(--card-bg,#1c1c1e); border-radius:12px; padding:16px; box-shadow:var(--card-shadow,0 2px 12px rgba(0,0,0,0.3)); }
+.version-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; }
+.version-row + .version-row { border-top:1px solid var(--separator,#38383a); }
+.version-label { color:var(--text-secondary,#8e8e93); font-size:13px; }
+.version-number { font-size:16px; font-weight:700; color:var(--accent-blue,#0a84ff); }
 
-        .card {
-          background: var(--card-bg, #1c1c1e);
-          border-radius: 12px; padding: 12px;
-          margin-bottom: 10px;
-        }
+.sub-section { margin-top:12px; }
+.sub-section h3 { font-size:13px; color:var(--text-secondary); }
+.version-changelog { background:var(--card-bg,#1c1c1e); border-radius:12px; padding:16px; max-height:400px; overflow-y:auto; font-size:12px; line-height:1.6; }
+.version-changelog::-webkit-scrollbar { width:4px; }
+.version-changelog::-webkit-scrollbar-thumb { background:var(--separator,#38383a); border-radius:2px; }
 
-        .row {
-          display: flex; gap: 6px; align-items: center;
-          margin: 6px 0; flex-wrap: wrap;
-        }
-        .row select {
-          flex: 1; min-width: 120px;
-          padding: 5px 8px;
-          background: var(--input-bg, #1c1c1e);
-          border: 1px solid var(--input-border, #38383a);
-          border-radius: 6px;
-          color: var(--text-primary, #fff);
-          font-size: 11px;
-        }
+.tip { font-size:12px; color:var(--text-muted,#636366); margin-top:4px; }
+.tip.success { color:var(--accent-green,#30d158); }
+.tip.error { color:var(--accent-red,#ff453a); }
+</style>
 
-        .help-content {
-          font-size: 12px; display: none;
-          background: var(--bg-tertiary, #2c2c2e);
-          border-radius: 8px; padding: 10px;
-          margin: 6px 0;
-        }
-        .help-content.open { display: block; }
-        .help-content ol { margin: 4px 0; padding-left: 20px; }
-        .help-content li { margin: 3px 0; color: var(--text-secondary); }
+<div class="version-head"><h3>📋 版本信息</h3></div>
+<div class="version-card">
+  <div class="version-row">
+    <span class="version-label">当前版本</span>
+    <span class="version-number" id="verNum">...</span>
+  </div>
+  <div class="version-row">
+    <button class="btn secondary small" id="checkBtn">检查更新</button>
+    <button class="btn small" id="updateBtn" style="display:none">立即更新</button>
+  </div>
+  <div id="updateTip" class="tip"></div>
+</div>
 
-        .help-toggle {
-          font-size: 11px; color: var(--accent-blue); cursor: pointer;
-        }
-
-        .tip {
-          font-size: 11px; color: var(--text-muted);
-          margin: 4px 0;
-        }
-
-        .step-list {
-          background: var(--card-bg, #1c1c1e);
-          border-radius: 8px;
-          max-height: 300px; overflow-y: auto;
-          font-size: 12px;
-        }
-        .step-item {
-          padding: 6px 10px;
-          border-bottom: 1px solid var(--separator, #38383a);
-        }
-        .step-item:last-child { border-bottom: none; }
-
-        .module-status {
-          font-size: 12px; padding: 6px;
-          color: var(--text-muted);
-        }
-
-        .history-item {
-          padding: 6px 0;
-          border-bottom: 1px solid var(--separator, #38383a);
-          font-size: 11px;
-        }
-
-        .batch-output {
-          background: #000; color: var(--accent-green);
-          border-radius: 8px; padding: 10px;
-          max-height: 200px; overflow-y: auto;
-          font-family: var(--font-mono, monospace);
-          font-size: 11px;
-          margin-top: 8px;
-          display: none;
-        }
-
-        .file-list {
-          max-height: 200px; overflow-y: auto;
-          font-size: 11px;
-        }
-        .file-item {
-          padding: 4px 8px;
-          border-bottom: 1px solid var(--separator);
-        }
-      </style>
-
-      <h3>⇅ 线刷 <span class="help-toggle" id="helpToggle">使用说明 ▾</span></h3>
-
-      <div class="help-content" id="helpContent">
-        <ol>
-          <li>线刷包放入手机 123456 文件夹</li>
-          <li>刷新列表→选择→复制解压</li>
-          <li>解析 BAT/CMD/SH 脚本即可执行线刷</li>
-        </ol>
-      </div>
-
-      <!-- ROM 选择 -->
-      <div class="card">
-        <div class="row">
-          <button class="btn btn-secondary btn-small" id="refreshRomBtn">刷新</button>
-          <select id="romSelect"><option value="">选择线刷包</option></select>
-          <button class="btn btn-small" id="extractBtn" disabled>解压</button>
-        </div>
-      </div>
-
-      <!-- 项目/脚本 -->
-      <div class="card">
-        <div class="row">
-          <button class="btn btn-secondary btn-small" id="refreshProjBtn">刷新项目</button>
-          <select id="projSelect"><option value="">选择已解压线刷项目</option></select>
-        </div>
-        <div class="row">
-          <button class="btn btn-secondary btn-small" id="refreshScriptBtn">刷新脚本</button>
-          <select id="scriptSelect"><option value="">选择刷机脚本</option></select>
-          <button class="btn btn-small" id="parseBtn" disabled>解析脚本</button>
-        </div>
-        <div class="row" style="margin-top:4px">
-          <input type="text" id="parseArgsInput" placeholder="带参数解析默认无，如需请填写" style="flex:1;padding:5px 8px;background:var(--input-bg,#1c1c1e);border:1px solid var(--input-border,#38383a);border-radius:6px;color:var(--text-primary,#fff);font-size:11px">
-        </div>
-        <div class="tip" style="margin-top:4px">
-          解析失败？<a href="#" id="uploadLink" style="color:var(--accent-orange)">📤 上传此脚本样本</a>
-        </div>
-      </div>
-
-      <!-- 已解压列表 -->
-      <div id="extractedList" class="file-list" style="display:none"></div>
-
-      <!-- 步骤列表 -->
-      <div id="stepList" class="step-list" style="display:none">
-        <div style="padding:12px;text-align:center;color:var(--text-muted)">解析脚本生成步骤</div>
-      </div>
-
-      <!-- 执行栏 -->
-      <div class="card" id="execBar" style="display:none">
-        <div class="module-status" id="flashStatus">线刷状态：等待解析脚本并检测设备。</div>
-        <div class="row">
-          <button class="btn btn-warn" id="flashBtn" disabled>执行线刷</button>
-          <button class="btn btn-secondary btn-small" id="simulateBtn" disabled>模拟刷入</button>
-          <button class="btn btn-secondary btn-small" id="clearStepsBtn" disabled>清空步骤</button>
-        </div>
-      </div>
-
-      <!-- 输出 -->
-      <div class="batch-output" id="batchOutput"></div>
-
-      <!-- 刷机历史 -->
-      <div style="margin-top:12px">
-        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">📋 刷机历史</div>
-        <button class="btn btn-secondary btn-small" id="loadHistoryBtn">加载历史记录</button>
-        <div id="historyList" style="margin-top:6px"></div>
-      </div>
-    `;
-
+<div class="sub-section">
+  <h3>📜 更新日志</h3>
+  <div class="version-changelog" id="changelog"><div style="color:var(--text-muted)">加载中...</div></div>
+</div>
+`;
     this._el = {
-      helpToggle: this._shadow.getElementById('helpToggle'),
-      helpContent: this._shadow.getElementById('helpContent'),
-      refreshRomBtn: this._shadow.getElementById('refreshRomBtn'),
-      romSelect: this._shadow.getElementById('romSelect'),
-      extractBtn: this._shadow.getElementById('extractBtn'),
-      refreshProjBtn: this._shadow.getElementById('refreshProjBtn'),
-      projSelect: this._shadow.getElementById('projSelect'),
-      refreshScriptBtn: this._shadow.getElementById('refreshScriptBtn'),
-      scriptSelect: this._shadow.getElementById('scriptSelect'),
-      parseBtn: this._shadow.getElementById('parseBtn'),
-      parseArgsInput: this._shadow.getElementById('parseArgsInput'),
-      uploadLink: this._shadow.getElementById('uploadLink'),
-      extractedList: this._shadow.getElementById('extractedList'),
-      stepList: this._shadow.getElementById('stepList'),
-      execBar: this._shadow.getElementById('execBar'),
-      flashStatus: this._shadow.getElementById('flashStatus'),
-      flashBtn: this._shadow.getElementById('flashBtn'),
-      simulateBtn: this._shadow.getElementById('simulateBtn'),
-      clearStepsBtn: this._shadow.getElementById('clearStepsBtn'),
-      batchOutput: this._shadow.getElementById('batchOutput'),
-      loadHistoryBtn: this._shadow.getElementById('loadHistoryBtn'),
-      historyList: this._shadow.getElementById('historyList'),
+      verNum: this._root.getElementById('verNum'),
+      checkBtn: this._root.getElementById('checkBtn'),
+      updateBtn: this._root.getElementById('updateBtn'),
+      updateTip: this._root.getElementById('updateTip'),
+      changelog: this._root.getElementById('changelog'),
     };
+    this._el.checkBtn.addEventListener('click', () => this._checkUpdate());
+    this._el.updateBtn.addEventListener('click', () => this._doUpdate());
   }
 
-  _bindEvents() {
-    const el = this._el;
-
-    el.helpToggle.addEventListener('click', () => {
-      el.helpContent.classList.toggle('open');
-    });
-
-    el.refreshRomBtn.addEventListener('click', () => this._refreshRoms());
-    el.extractBtn.addEventListener('click', () => this._extractRom());
-    el.refreshProjBtn.addEventListener('click', () => this._refreshProjects());
-    el.refreshScriptBtn.addEventListener('click', () => this._refreshScripts());
-    el.parseBtn.addEventListener('click', () => this._parseScript());
-    el.flashBtn.addEventListener('click', () => this._executeFlash());
-    el.simulateBtn.addEventListener('click', () => this._simulateFlash());
-    el.clearStepsBtn.addEventListener('click', () => this._clearSteps());
-    el.loadHistoryBtn.addEventListener('click', () => this._loadHistory());
-    el.uploadLink.addEventListener('click', (e) => { e.preventDefault(); this._uploadScript(); });
-  }
-
-  // ============================================================
-  // API 调用
-  // ============================================================
-
-  async _api(method, path, body) {
-    const url = this._state.backendUrl || window.location.origin;
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(`${url}${path}`, opts);
-    return await res.json();
-  }
-
-  async _refreshRoms() {
+  async _fetchVersion() {
     try {
-      const data = await this._api('GET', '/api/rom/list');
-      if (data.success) {
-        this._state.roms = data.roms || [];
-        this._el.romSelect.innerHTML = '<option value="">选择线刷包</option>'
-          + this._state.roms.map(r => `<option value="${r}">${r}</option>`).join('');
-        this._el.extractBtn.disabled = false;
-      }
-    } catch (e) {
-      console.warn('获取 ROM 列表失败:', e);
-    }
+      const url = this._state.backendUrl || window.location.origin;
+      const r = await fetch(url + '/api/version');
+      const d = await r.json();
+      if (d.success) { this._state.version = d.version; this._el.verNum.textContent = d.version; }
+    } catch(e) { this._el.verNum.textContent = '获取失败'; this._el.verNum.style.color = 'var(--accent-red)'; }
   }
 
-  async _extractRom() {
-    const rom = this._el.romSelect.value;
-    if (!rom) return;
-    this._el.extractBtn.disabled = true;
-    this._el.extractBtn.textContent = '解压中...';
+  async _checkUpdate() {
+    const btn = this._el.checkBtn; btn.disabled = true; btn.textContent = '检查中...';
     try {
-      await this._api('POST', '/api/rom/extract', { name: rom });
-      await this._refreshProjects();
-    } catch (e) {
-      console.warn('解压失败:', e);
-    } finally {
-      this._el.extractBtn.disabled = false;
-      this._el.extractBtn.textContent = '解压';
-    }
+      const url = this._state.backendUrl || window.location.origin;
+      const r = await fetch(url + '/api/update/check');
+      const d = await r.json();
+      if (d.hasUpdate) { this._el.updateTip.textContent = `新版本 ${d.latestVersion} 可用！`; this._el.updateTip.className = 'tip success'; this._el.updateBtn.style.display = ''; }
+      else { this._el.updateTip.textContent = '已是最新版本'; this._el.updateTip.className = 'tip'; this._el.updateBtn.style.display = 'none'; }
+    } catch(e) { this._el.updateTip.textContent = '检查失败: ' + e.message; this._el.updateTip.className = 'tip error'; }
+    finally { btn.disabled = false; btn.textContent = '检查更新'; }
   }
 
-  async _refreshProjects() {
+  async _doUpdate() {
+    const btn = this._el.updateBtn; btn.disabled = true; btn.textContent = '更新中...';
     try {
-      const data = await this._api('GET', '/api/rom/projects');
-      if (data.success) {
-        this._state.projects = data.projects || [];
-        this._el.projSelect.innerHTML = '<option value="">选择已解压线刷项目</option>'
-          + this._state.projects.map(p => `<option value="${p}">${p}</option>`).join('');
-      }
-    } catch (e) { /* ignore */ }
+      const url = this._state.backendUrl || window.location.origin;
+      const r = await fetch(url + '/api/update/do', { method: 'POST' });
+      const d = await r.json();
+      this._el.updateTip.textContent = d.success ? '更新完成，请刷新页面' : '更新失败: ' + (d.error || '');
+      this._el.updateTip.className = d.success ? 'tip success' : 'tip error';
+    } catch(e) { this._el.updateTip.textContent = '更新失败: ' + e.message; this._el.updateTip.className = 'tip error'; }
+    finally { btn.disabled = false; btn.textContent = '立即更新'; }
   }
 
-  async _refreshScripts() {
-    const proj = this._el.projSelect.value;
-    if (!proj) return;
+  _renderChangelog() {
+    const logs = [
+      { ver: 'v3.9.6', date: '2026-07-10', items: ['禁用SH管线文件存在性检查（sh_001/sh_002/共享模板不再报告 missing_files）', 'validate_image_rel_path 全局修复带前导"/"的相对路径误判'] },
+      { ver: 'v3.9.5', date: '2026-07-10', items: ['修复：validate_image_rel_path 误判带前导"/"的相对路径', 'crclist.txt/abl.elf 等非 .img 文件路径校验通过'] },
+      { ver: 'v3.9.4', date: '2026-07-10', items: ['修复：start_batch_task 中 hydra_summary 为字符串时调 .get() 崩溃'] },
+      { ver: 'v3.9.3', date: '2026-07-10', items: ['移除镜像格式限制，支持任意格式刷写', 'validate_image_rel_path/validate_absolute_image_path 不再硬性限制 .img'] },
+      { ver: 'v3.9.1', date: '2026-07-10', items: ['修复非AB机型set_active崩溃', '启动线刷任务异常捕获', '非AB自动跳过set_active', 'sh_001解析高通flash_all.sh优化'] },
+      { ver: 'v3.9.0', date: '2026-07-09', items: ['亮剑架构引擎落地失败，重启天树引擎', '工具箱VB校验增加文件选择按钮', '线刷参数输入框UI优化'] },
+      { ver: 'v3.8.5', date: '2026-07-06', items: ['前端架构重构：Web Component 隔离', '上传脚本优化', 'UI 细节调整'] },
+      { ver: 'v3.7.0', date: '2026-07-04', items: ['FTB 纯前端脚本视图修复', 'WebUSB 模式增强'] },
+      { ver: 'v3.6.0', date: '2026-07-01', items: ['新增 SH 解析管线', 'BAT 解析引擎优化'] },
+      { ver: 'v3.5.0', date: '2026-06-28', items: ['新增 WebUSB 刷机支持', '重构前端架构'] },
+    ];
+    this._fetchChangelog(logs);
+  }
+
+  async _fetchChangelog(fb) {
     try {
-      const data = await this._api('GET', `/api/rom/scripts?project=${encodeURIComponent(proj)}`);
-      if (data.success) {
-        this._state.selectedProject = proj;
-        this._el.scriptSelect.innerHTML = '<option value="">选择刷机脚本</option>'
-          + data.scripts.map(s => `<option value="${s}">${s}</option>`).join('');
-        this._el.parseBtn.disabled = false;
-      }
-    } catch (e) { /* ignore */ }
+      const url = this._state.backendUrl || window.location.origin;
+      const r = await fetch(url + '/api/changelog');
+      const d = await r.json();
+      if (d.success && d.changelog) { this._renderLogs(d.changelog); return; }
+    } catch(e) { /* 降级 */ }
+    this._renderLogs(fb);
   }
 
-  async _parseScript() {
-    const script = this._el.scriptSelect.value;
-    const proj = this._el.projSelect.value;
-    if (!script || !proj) return;
-    try {
-      const extraArgs = this._el.parseArgsInput ? this._el.parseArgsInput.value.trim() : '';
-      const body = { project: proj, script };
-      if (extraArgs) body.extra_args = extraArgs;
-      const data = await this._api('POST', '/api/rom/parse', body);
-      if (data.success) {
-        this._state.steps = data.steps || [];
-        this._renderSteps();
-        this._el.execBar.style.display = '';
-        this._el.flashBtn.disabled = false;
-        this._el.simulateBtn.disabled = false;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  _renderSteps() {
-    const el = this._el.stepList;
-    el.style.display = '';
-    if (this._state.steps.length === 0) {
-      el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted)">无步骤</div>';
-      return;
-    }
-    el.innerHTML = this._state.steps.map((s, i) => `
-      <div class="step-item">
-        <strong>#${i + 1}</strong>
-        <span style="color:var(--accent-orange)">${s.type || 'cmd'}</span>
-        ${s.part ? `<span style="color:var(--accent-blue)">${s.part}</span>` : ''}
-        <span style="color:var(--text-muted)">${s.fileName || s.params || s.command || ''}</span>
+  _renderLogs(logs) {
+    this._el.changelog.innerHTML = logs.map(l => `
+      <div style="margin-bottom:12px">
+        <strong style="color:var(--accent-blue);font-size:13px">${l.ver || l.version || ''}</strong>
+        <span style="color:var(--text-muted);font-size:11px;margin-left:6px">${l.date || ''}</span>
+        <ul style="margin:4px 0 0 0;padding-left:18px">
+          ${(l.items || []).map(i => `<li style="margin:2px 0">${i}</li>`).join('')}
+        </ul>
       </div>
     `).join('');
   }
-
-  async _executeFlash() {
-    if (this._state.steps.length === 0) return;
-    this._el.flashBtn.disabled = true;
-    this._el.flashBtn.textContent = '执行中...';
-    this._el.batchOutput.style.display = '';
-    this._el.batchOutput.innerHTML = '';
-    try {
-      const data = await this._api('POST', '/api/flash/exec', {
-        project: this._el.projSelect.value,
-        steps: this._state.steps,
-      });
-      if (data.output) {
-        this._el.batchOutput.innerHTML = data.output.replace(/\n/g, '<br>');
-      }
-    } catch (e) {
-      this._el.batchOutput.innerHTML = '执行失败: ' + e.message;
-    } finally {
-      this._el.flashBtn.disabled = false;
-      this._el.flashBtn.textContent = '执行线刷';
-    }
-  }
-
-  async _simulateFlash() {
-    // 简单模拟
-    alert('模拟刷入：步骤将通过 API 模拟执行，请确认设备已连接。');
-  }
-
-  _clearSteps() {
-    this._state.steps = [];
-    this._el.stepList.style.display = 'none';
-    this._el.execBar.style.display = 'none';
-  }
-
-  _uploadScript() {
-    alert('上传功能：请选择脚本文件上传到服务器帮助改进解析引擎。');
-  }
-
-  async _loadHistory() {
-    try {
-      const data = await this._api('GET', '/api/history');
-      if (data.success && data.history) {
-        this._el.historyList.innerHTML = data.history.map(h => `
-          <div class="history-item">${h.time || ''} - ${h.rom || h.script || '线刷'} ${h.success ? '✅' : '❌'}</div>
-        `).join('');
-      }
-    } catch (e) { /* ignore */ }
-  }
 }
-
-customElements.define('flash-panel', FlashPanel);
-console.log('[Component] <flash-panel> 已注册');
+customElements.define('version-panel', VersionPanel);
+console.log('[Component] <version-panel> 已注册');

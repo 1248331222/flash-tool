@@ -1,363 +1,324 @@
-# Skytree Flasher / core/device_info.py
-# -*- coding: utf-8 -*-
-"""
-core/device_info.py — 设备信息查询与操作（BL锁/槽位/重启/擦除/USB）
-从 core/device.py 拆分而来，函数逻辑保持不变。
+// 文件名：按分类器特征键命名，如 bat_rule_based.js
+module.exports = {
+    parse: async function(content, ctx) {
+        var steps = [];
+        var vars = {};
+        var romDir = ctx.romDir || '';
+        var fileApi = ctx.fileApi;
+        var delayedExpansion = false;
 
-run_fastboot_command / get_fastboot_base_cmd / get_selected_fastboot_device /
-classify_fastboot_result 来自 core.device（核心命令执行层）。
-"""
-
-import re
-import subprocess
-
-from config import (
-    TERMUX_USB_CMD,
-    BL_QUERY_TIMEOUT,
-    DEVICE_INFO_TIMEOUT,
-    USB_CHECK_TIMEOUT,
-    USB_GRANT_TIMEOUT,
-    logger,
-)
-from core.device import (
-    run_fastboot_command,
-    run_adb_command,
-    get_fastboot_base_cmd,
-    get_selected_fastboot_device,
-    classify_fastboot_result,
-    check_devices,
-    check_adb_devices,
-)
-
-
-def get_bl_unlock_info() -> dict:
-    """
-    查询 BL 锁状态，兼容一加/通用 fastboot 命令。
-    有些一加/新设备不支持 fastboot oem device-info，会返回 unknown command。
-    """
-    attempts = [
-        {"name": "一加/旧设备 oem device-info", "args": ["oem", "device-info"]},
-        {"name": "通用 getvar unlocked", "args": ["getvar", "unlocked"]},
-        {"name": "通用 flashing get_unlock_ability", "args": ["flashing", "get_unlock_ability"]},
-        {"name": "通用 getvar secure", "args": ["getvar", "secure"]},
-    ]
-    logs = []
-    info = {}
-    for item in attempts:
-        res = run_fastboot_command(item["args"], timeout=BL_QUERY_TIMEOUT)
-        combined = res.get("combined", "") or (res.get("output", "") + res.get("error", ""))
-        logs.append({
-            "name": item["name"],
-            "args": item["args"],
-            "success": res.get("success", False),
-            "output": combined.strip(),
-            "diagnosis": res.get("diagnosis", "")
-        })
-
-        unlocked = re.search(r'unlocked:\s*(yes|no|true|false|1|0)', combined, re.IGNORECASE)
-        secure = re.search(r'secure:\s*(yes|no|true|false|1|0)', combined, re.IGNORECASE)
-        ability = re.search(r'get_unlock_ability:\s*(\d+)', combined, re.IGNORECASE)
-        device_unlocked = re.search(r'Device unlocked:\s*(true|false)', combined, re.IGNORECASE)
-
-        if unlocked:
-            info["unlocked"] = unlocked.group(1)
-        if secure:
-            info["secure"] = secure.group(1)
-        if ability:
-            info["unlock_ability"] = ability.group(1)
-        if device_unlocked:
-            info["device_unlocked"] = device_unlocked.group(1)
-
-    def _truthy(v):
-        return str(v).strip().lower() in ("yes", "true", "1", "unlocked")
-
-    def _falsy(v):
-        return str(v).strip().lower() in ("no", "false", "0", "locked")
-
-    bl_unlocked = None
-    if "unlocked" in info:
-        bl_unlocked = _truthy(info["unlocked"])
-    elif "device_unlocked" in info:
-        bl_unlocked = _truthy(info["device_unlocked"])
-    elif "secure" in info:
-        # secure:no 通常表示非安全/已解锁，secure:yes 通常表示仍为安全锁定状态
-        bl_unlocked = _falsy(info["secure"])
-
-    if bl_unlocked is True:
-        chinese_status = "Bootloader状态：已解锁。"
-    elif bl_unlocked is False:
-        chinese_status = "Bootloader状态：未解锁。"
-    else:
-        chinese_status = "Bootloader状态：未能明确判断。"
-
-    ok = bool(info) or any(x["success"] for x in logs)
-    return {
-        "success": ok,
-        "info": info,
-        "bl_unlocked": bl_unlocked,
-        "status_text": chinese_status,
-        "attempts": logs,
-        "analysis": (
-            chinese_status + " 当前设备不支持 fastboot oem device-info，已自动尝试 getvar/flashing 通用查询。"
-            if any("unknown command" in x["output"].lower() for x in logs)
-            else chinese_status
-        )
-    }
-
-
-def get_device_slot() -> dict:
-    """
-    获取设备当前槽位（AB分区）
-
-    Returns:
-        槽位信息字典
-    """
-    res = run_fastboot_command(["getvar", "current-slot"])
-
-    output = res["combined"]
-    match = re.search(r'current-slot:\s*(\w)', output, re.IGNORECASE)
-
-    if match:
-        slot = match.group(1).lower()
-        return {
-            "success": True,
-            "slot": slot,
-            "ab_device": True
-        }
-    else:
-        return {
-            "success": True,
-            "slot": "",
-            "ab_device": False
+        // ========== 工具函数 ==========
+        function resolveVars(text) {
+            text = text.replace(/%~dp0/gi, romDir + '/');
+            // 保留 %* 和 %1-%9
+            text = text.replace(/%(\w+)%/g, function(_, name) {
+                if (name === '*' || /^[1-9]$/.test(name)) return _;
+                return vars[name] !== undefined ? vars[name] : _;
+            });
+            if (delayedExpansion) {
+                text = text.replace(/!(\w+)!/g, function(_, name) {
+                    return vars[name] !== undefined ? vars[name] : _;
+                });
+            }
+            return text;
         }
 
-
-def get_device_info() -> dict:
-    """
-    获取设备详细信息
-
-    Returns:
-        设备信息字典
-    """
-    info = {}
-
-    def parse_getvar_value(var_name: str, text: str) -> str:
-        """只从真正的 getvar 行提取值，过滤 fastboot 的 OKAY/FAILED/Finished 统计输出"""
-        text = text or ""
-        patterns = [
-            rf'^\s*(?:\(bootloader\)\s*)?{re.escape(var_name)}\s*:\s*(.+?)\s*$',
-            rf'^\s*{re.escape(var_name)}\s*=\s*(.+?)\s*$',
-        ]
-        for line in text.splitlines():
-            clean = line.strip()
-            low = clean.lower()
-            if not clean or low.startswith(("finished.", "okay", "failed", "waiting for", "getvar:")):
-                continue
-            for pat in patterns:
-                m = re.search(pat, clean, re.IGNORECASE)
-                if m:
-                    value = m.group(1).strip().strip("'\"")
-                    vlow = value.lower()
-                    if value and not vlow.startswith(("finished.", "okay", "failed")):
-                        return value
-        return ""
-
-    # 获取各种信息
-    vars_to_get = [
-        ('product', 'product'),
-        ('product-name', 'product_name'),
-        ('variant', 'variant'),
-        ('current-slot', 'current_slot'),
-        ('serial-number', 'serial'),
-        ('is-userspace', 'is_userspace'),
-        ('version-bootloader', 'bootloader_version'),
-        ('version', 'fastboot_version'),
-        ('battery-voltage', 'battery'),
-        ('battery-soc', 'battery_soc'),
-    ]
-
-    for var_name, key in vars_to_get:
-        res = run_fastboot_command(["getvar", var_name], timeout=DEVICE_INFO_TIMEOUT)
-        value = parse_getvar_value(var_name, res.get("combined", ""))
-        if value:
-            info[key] = value
-
-    # 一些设备 product-name 不稳定或返回统计文本，展示时优先使用 product。
-    bad_values = ("finished", "okay", "failed", "getvar")
-    for k in list(info.keys()):
-        if str(info[k]).strip().lower().startswith(bad_values):
-            info.pop(k, None)
-    if info.get("product"):
-        info["product_display"] = info["product"]
-    elif info.get("product_name"):
-        info["product_display"] = info["product_name"]
-
-    return {
-        "success": True,
-        "info": info
-    }
-
-
-def reboot_device(target: str = "") -> dict:
-    """
-    重启设备
-
-    Args:
-        target: 重启目标 (空=系统, recovery, bootloader, fastboot)
-
-    Returns:
-        结果字典
-    """
-    # 根据当前设备模式选择命令工具
-    # 优先检查 fastboot 设备，再检查 ADB 设备
-    fb = check_devices()
-    adb = check_adb_devices()
-
-    if fb.get("connected"):
-        # Fastboot 模式：fastboot reboot [target]
-        if target and target not in ("system", ""):
-            args = ["reboot", target]
-        else:
-            args = ["reboot"]
-        result = run_fastboot_command(args)
-    elif adb.get("connected"):
-        # ADB 模式：adb reboot [target]
-        # ADB 的 reboot 参数：空=系统, recovery, bootloader
-        # 注意：ADB 没有 "fastboot" 这个 target，需要用 "bootloader"
-        if target == "fastboot":
-            target = "bootloader"  # ADB 模式下用 reboot bootloader 进入 fastboot
-        if target and target != "system":
-            args = ["reboot", target]
-        else:
-            args = ["reboot"]
-        result = run_adb_command(args)
-        # ADB 重启通常返回码非0但命令已执行成功，需要特殊处理
-        if not result.get("success"):
-            combined = result.get("combined", "")
-            # ADB reboot 成功时设备会断开，可能返回 error，但命令实际已执行
-            if "error: device" in combined.lower() or "failed" in combined.lower():
-                # 真正的失败
-                pass
-            else:
-                # 设备断开导致的错误，视为成功
-                result["success"] = True
-                result["error"] = ""
-    else:
-        return {
-            "success": False,
-            "error": "未检测到设备连接，请先检测设备"
+        function normalizePath(p) {
+            p = p.replace(/\\/g, '/').replace(/^["']|["']$/g, '');
+            if (p.indexOf('/') === 0) return p;
+            return romDir ? romDir.replace(/\/+$/, '') + '/' + p : p;
         }
 
-    return result
-
-
-def erase_partition(partition: str) -> dict:
-    """
-    擦除分区
-
-    Args:
-        partition: 分区名
-
-    Returns:
-        结果字典
-    """
-    return run_fastboot_command(["erase", partition])
-
-
-def set_active_slot(slot: str) -> dict:
-    """
-    设置活动槽位
-
-    Args:
-        slot: 槽位名 (a/b)
-
-    Returns:
-        结果字典
-    """
-    return run_fastboot_command(["set_active", slot])
-
-
-def oem_command(command: str) -> dict:
-    """
-    执行 OEM 命令
-
-    Args:
-        command: OEM 命令 (如 unlock, lock, device-info)
-
-    Returns:
-        结果字典
-    """
-    return run_fastboot_command(["oem", command])
-
-
-def check_usb_devices() -> dict:
-    """
-    检查 USB 设备列表（通过 termux-usb）
-
-    Returns:
-        USB 设备列表
-    """
-    try:
-        res = subprocess.run(
-            [TERMUX_USB_CMD, "-l"],
-            capture_output=True,
-            text=True,
-            timeout=USB_CHECK_TIMEOUT
-        )
-
-        devices = [l.strip() for l in res.stdout.splitlines() if l.strip()]
-
-        return {
-            "success": True,
-            "devices": devices,
-            "count": len(devices)
-        }
-
-    except Exception as e:
-        logger.error(f"检查USB设备失败: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "devices": []
-        }
-
-
-def grant_usb_permission(device: str = "") -> dict:
-    """
-    授权 USB 设备
-
-    Args:
-        device: 设备路径（可选，不提供则自动选择第一个）
-
-    Returns:
-        结果字典
-    """
-    try:
-        if not device:
-            # 自动获取第一个设备
-            usb_res = check_usb_devices()
-            if not usb_res["success"] or not usb_res["devices"]:
-                return {
-                    "success": False,
-                    "error": "未检测到USB设备"
+        function expandAllForVars(str, forStack) {
+            if (!forStack.length) return str;
+            var varNames = forStack.map(function(ctx) { return ctx.var; });
+            var pattern = '%%(~[a-zA-Z]*)?(' + varNames.join('|') + ')';
+            var re = new RegExp(pattern, 'g');
+            return str.replace(re, function(match, modifier, varName) {
+                var ctx = null;
+                for (var i = forStack.length - 1; i >= 0; i--) {
+                    if (forStack[i].var === varName) { ctx = forStack[i]; break; }
                 }
-            device = usb_res["devices"][0]
-
-        subprocess.run(
-            [TERMUX_USB_CMD, "-r", device],
-            capture_output=True,
-            timeout=USB_GRANT_TIMEOUT
-        )
-
-        return {
-            "success": True,
-            "msg": "权限申请已发送，请在弹窗点击允许",
-            "device": device
+                if (!ctx) return match;
+                var rawVal = ctx.value;
+                var full = normalizePath(rawVal);
+                if (!modifier) return rawVal;
+                var mod = modifier.toLowerCase();
+                if (mod === '~') return rawVal.replace(/^["']|["']$/g, '');
+                if (mod.indexOf('f') >= 0) return full;
+                if (mod.indexOf('n') >= 0) return full.split('/').pop().replace(/\.[^/.]+$/, '');
+                if (mod.indexOf('x') >= 0) {
+                    var fname = full.split('/').pop();
+                    return (fname.match(/\.[^/.]+$/) || [''])[0];
+                }
+                if (mod.indexOf('p') >= 0) return full.substring(0, full.lastIndexOf('/') + 1);
+                return rawVal;
+            });
         }
 
-    except Exception as e:
-        logger.error(f"USB授权失败: {e}")
-        return {
-            "success": False,
-            "error": str(e)
+        function splitCmd(line) {
+            var parts = [], cur = '', inQ = false;
+            for (var i = 0; i < line.length; i++) {
+                var ch = line[i];
+                if (ch === '"') { inQ = !inQ; continue; }
+                if ((ch === ' ' || ch === '\t') && !inQ) {
+                    if (cur) { parts.push(cur); cur = ''; }
+                } else cur += ch;
+            }
+            if (cur) parts.push(cur);
+            return parts;
         }
+
+        function makeStep(parts, prefixParams) {
+            if (!parts || parts.length === 0) return null;
+            var bin = parts[0].replace(/\\/g, '/').split('/').pop().replace(/\.exe$/i, '').toLowerCase();
+            if (bin !== 'fastboot' && bin !== 'adb') return null;
+            var rest = parts.slice(1);
+            var globalParams = [];
+            while (rest.length && rest[0].startsWith('--')) globalParams.push(rest.shift());
+            if (prefixParams) globalParams = prefixParams.split(/\s+/).concat(globalParams);
+            var action = rest[0] ? rest[0].toLowerCase() : '';
+
+            if (action === '-w') {
+                return { type: 'raw', raw: 'fastboot -w', risk: 'HIGH' };
+            }
+            if (action === 'getvar') {
+                return { type: 'getvar', raw: 'fastboot ' + rest.join(' '), risk: 'LOW' };
+            }
+            if (action === 'flash') {
+                var partition = rest[1] || '';
+                var imagePath = normalizePath(rest[2] || '');
+                var extraParams = rest.slice(3).join(' ');
+                var raw = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' flash ' + partition + ' ' + imagePath + (extraParams ? ' ' + extraParams : '');
+                return {
+                    type: 'flash', partition: partition, imagePath: imagePath,
+                    raw: raw, risk: getRisk(partition),
+                    prefixParams: globalParams.join(' ') || undefined,
+                    params: extraParams || undefined
+                };
+            }
+            if (action === 'erase') {
+                return { type: 'erase', partition: rest[1] || '', raw: 'fastboot erase ' + rest[1], risk: 'HIGH' };
+            }
+            if (action === 'reboot') {
+                var target = rest.slice(1).join(' ') || 'system';
+                return { type: 'reboot', target: target, raw: 'fastboot reboot' + (target !== 'system' ? ' ' + target : ''), risk: 'LOW' };
+            }
+            if (action === 'set_active' || action === '--set-active') {
+                return { type: 'set_active', partition: rest[1] || '', raw: 'fastboot set_active ' + rest[1], risk: 'MEDIUM' };
+            }
+            if (action === 'delete-logical-partition') {
+                return { type: 'raw', raw: 'fastboot delete-logical-partition ' + rest[1], risk: 'MEDIUM' };
+            }
+            if (action === 'devices') {
+                return { type: 'raw', raw: 'fastboot devices', risk: 'LOW' };
+            }
+            return { type: 'raw', raw: 'fastboot ' + rest.join(' '), risk: 'MEDIUM' };
+        }
+
+        function getRisk(part) {
+            var map = { xbl:'CRITICAL',xbl_config:'CRITICAL',abl:'CRITICAL',bootloader:'CRITICAL',preloader_raw:'CRITICAL',modem:'HIGH',frp:'HIGH',metadata:'HIGH' };
+            return map[part.toLowerCase()] || 'MEDIUM';
+        }
+
+        // ========== 第一阶段：收集 set 变量 ==========
+        var lines = content.split(/\r?\n/);
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (/^setlocal\s+enabledelayedexpansion/i.test(line)) delayedExpansion = true;
+            var setMatch = line.match(/^set\s+"?(\w+)=(.+?)"?\s*$/i);
+            if (setMatch) vars[setMatch[1]] = setMatch[2];
+        }
+        for (var k in vars) vars[k] = resolveVars(vars[k]);
+
+        // ========== 第二阶段：状态机 + 递归处理 ==========
+        async function processLines(linesArray, localVars, forStack) {
+            var savedVars = Object.assign({}, vars);
+            if (localVars) Object.assign(vars, localVars);
+            var stack = forStack || [];
+            var idx = 0;
+            var pendingFor = null, pendingIf = null;
+
+            async function executeLine(line) {
+                line = expandAllForVars(line, stack);
+                line = resolveVars(line);
+                // ★ 精确过滤：仅跳过明显是管道/校验的行，不误伤正常命令
+                if (/^(fastboot|adb)\s+.+\|/.test(line) || /findstr/i.test(line)) return;
+                var setMatch = line.match(/^\s*set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (setMatch) { vars[setMatch[1]] = resolveVars(setMatch[2]); return; }
+                // 在提取命令前，先移除可能存在的无害重定向（如 >nul 2>&1），但保留主命令
+                var cleanLine = line.replace(/>.*$/i, '').trim();
+                if (!cleanLine) return;
+                var parts = splitCmd(cleanLine);
+                if (parts.length === 0) return;
+                parts = parts.map(function(p) { return expandAllForVars(p, stack); });
+                var step = makeStep(parts);
+                if (step) steps.push(step);
+            }
+
+            async function executeForBlock(block) {
+                var items = await expandCollection(block.collection);
+                for (var j = 0; j < items.length; j++) {
+                    vars[block.varName] = items[j];
+                    stack.push({ var: block.varName, value: items[j] });
+                    await processLines(block.body, null, stack);
+                    stack.pop();
+                }
+            }
+
+            async function executeIfBlock(block) {
+                var expandedCond = expandAllForVars(block.condition, stack);
+                expandedCond = resolveVars(expandedCond);
+                if (evalCondition(expandedCond)) {
+                    await processLines(block.body, null, stack);
+                }
+            }
+
+            function evalCondition(cond) {
+                cond = cond.trim();
+                var negated = false;
+                if (/^not\s+/i.test(cond)) { negated = true; cond = cond.replace(/^not\s+/i, '').trim(); }
+                var result;
+                if (/^exist\s+/i.test(cond)) {
+                    result = true;
+                } else if (/^\/i\s+/i.test(cond)) {
+                    var ciMatch = cond.match(/^\/i\s+"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (ciMatch) result = ciMatch[1].toLowerCase() === ciMatch[2].toLowerCase();
+                    else result = false;
+                } else {
+                    var strMatch = cond.match(/^"?([^"'\s]+)"?\s*==\s*"?(.+?)"?$/i);
+                    if (strMatch) result = strMatch[1] === strMatch[2];
+                    else {
+                        var numMatch = cond.match(/^(\S+)\s+(equ|neq|gtr|geq|lss|leq)\s+(\S+)$/i);
+                        if (numMatch) {
+                            var l = parseInt(numMatch[1]), r = parseInt(numMatch[3]);
+                            if (isNaN(l) || isNaN(r)) result = numMatch[2].toLowerCase() === 'equ' ? numMatch[1] === numMatch[3] : numMatch[1] !== numMatch[3];
+                            else {
+                                switch (numMatch[2].toLowerCase()) {
+                                    case 'equ': result = l === r; break;
+                                    case 'neq': result = l !== r; break;
+                                    default: result = false;
+                                }
+                            }
+                        } else if (/^errorlevel\s+\d+$/i.test(cond)) result = false;
+                        else result = true;
+                    }
+                }
+                return negated ? !result : result;
+            }
+
+            async function expandCollection(collection) {
+                collection = collection.replace(/^["']|["']$/g, '');
+                collection = resolveVars(collection);
+                if (/\*|\?/.test(collection)) {
+                    if (fileApi && fileApi.glob) {
+                        var lastSlash = collection.replace(/\\/g, '/').lastIndexOf('/');
+                        var dir = lastSlash >= 0 ? collection.substring(0, lastSlash) : '';
+                        var pattern = lastSlash >= 0 ? collection.substring(lastSlash + 1) : collection;
+                        try {
+                            var files = await fileApi.glob(pattern, dir || romDir);
+                            if (files && files.length) return files.map(f => f.replace(/\\/g, '/'));
+                        } catch(e) {}
+                    }
+                    return [];
+                }
+                return collection.split(/[\s,]+/).filter(Boolean);
+            }
+
+            while (idx < linesArray.length) {
+                var rawLine = linesArray[idx].trim();
+                idx++;
+                if (!rawLine || /^(::|rem\b|@echo|title|color|cls|echo|pause|timeout|chcp|endlocal|goto|exit\b)/i.test(rawLine)) continue;
+                if (rawLine.startsWith('@')) rawLine = rawLine.substring(1).trim();
+
+                if (pendingFor) {
+                    if (rawLine === ')') {
+                        if (pendingFor.depth > 0) { pendingFor.body.push(rawLine); pendingFor.depth--; }
+                        else { await executeForBlock(pendingFor); pendingFor = null; }
+                    } else {
+                        pendingFor.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingFor.depth++;
+                    }
+                    continue;
+                }
+                if (pendingIf) {
+                    if (rawLine === ')') {
+                        if (pendingIf.depth > 0) { pendingIf.body.push(rawLine); pendingIf.depth--; }
+                        else { await executeIfBlock(pendingIf); pendingIf = null; }
+                    } else {
+                        pendingIf.body.push(rawLine);
+                        if (/\(\s*$/.test(rawLine)) pendingIf.depth++;
+                    }
+                    continue;
+                }
+
+                var expanded = expandAllForVars(rawLine, stack);
+                expanded = resolveVars(expanded);
+
+                var forStart = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s*\(\s*$/i);
+                if (forStart) {
+                    pendingFor = { varName: forStart[1], collection: forStart[2], body: [], depth: 0 };
+                    continue;
+                }
+
+                // ★ 兼容 if errorlevel 等多行块
+                var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
+                if (ifStart) {
+                    // 跳过纯 errorlevel 块，但保留其块结构以防止括号匹配错误
+                    if (/^errorlevel\s+\d+$/i.test(ifStart[1])) {
+                        // 跳过整个块
+                        var depth2 = 1;
+                        while (idx < linesArray.length && depth2 > 0) {
+                            var skipLine = linesArray[idx].trim();
+                            idx++;
+                            if (skipLine === ')') depth2--;
+                            else if (/\(\s*$/.test(skipLine)) depth2++;
+                        }
+                        continue;
+                    }
+                    pendingIf = { condition: ifStart[1], body: [], depth: 0 };
+                    continue;
+                }
+
+                var singleFor = expanded.match(/^for\s+%%(\w)\s+in\s+\((.+?)\)\s+do\s+(.+)/i);
+                if (singleFor) {
+                    var varName = singleFor[1], collection = singleFor[2], command = singleFor[3];
+                    var items = await expandCollection(collection);
+                    for (var j = 0; j < items.length; j++) {
+                        vars[varName] = items[j];
+                        stack.push({ var: varName, value: items[j] });
+                        var expandedCmd = expandAllForVars(command, stack);
+                        expandedCmd = resolveVars(expandedCmd);
+                        await executeLine(expandedCmd);
+                        stack.pop();
+                    }
+                    continue;
+                }
+
+                var singleIf = expanded.match(/^if\s+(not\s+)?exist\s+"?([^"\s]+)"?\s+(.+)/i);
+                if (singleIf) {
+                    var notExist = !!singleIf[1], path = singleIf[2], action = singleIf[3].replace(/\)\s*$/, '');
+                    if (!notExist) await executeLine(action);
+                    continue;
+                }
+
+                var ifSet = expanded.match(/^if\s+(?:\/i\s+)?["']?!?(\w+)!?["']?\s*==\s*["']?([^"'\s]+)["']?\s+set\s+"?(\w+)=(.+?)"?\s*$/i);
+                if (ifSet) {
+                    var leftVal = resolveVars(ifSet[1]);
+                    var rightVal = expandAllForVars(ifSet[2], stack);
+                    if (ifSet[1].toLowerCase() === rightVal.toLowerCase() || leftVal === rightVal) {
+                        vars[ifSet[3]] = ifSet[4];
+                    }
+                    continue;
+                }
+
+                await executeLine(expanded);
+            }
+
+            if (localVars) vars = savedVars;
+        }
+
+        await processLines(lines, null, []);
+        return { steps: steps };
+    }
+};

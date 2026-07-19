@@ -1,331 +1,503 @@
-// flash_tool/static/js/toolbox_ops.js
-
-// ============ 重启 ============
-const rebootSysTask = new ModuleTask('工具箱', '重启系统');
-function rebootSys() {
-    rebootSysTask.confirm('确认', '确认重启设备到系统？', async () => {
-        rebootSysTask.status('正在重启到系统。', 'warn');
-        await sendRebootCommand('');
-        rebootSysTask.status('已发送重启到系统指令。', 'ok');
-        rebootSysTask.log('已发送重启指令', 'ok');
+// ============ 脚本上传功能（自包含重写版）============
+// v2 - 脱离 _upload_records.json，直接用 WebDAV 文件名列表
+var _selectedUploadFile = null;
+var _isUploading = false;
+// ---- 内部常量 ----
+var UP = {};
+// ---- 配置说明 ----
+// wdUrl:   WebDAV 根路径。用于「上传脚本」和「PROPFIND 列表」。
+//          AList 后台 → 存储驱动 → 挂载路径（一般就是 /dav）
+// wdUser/pass: WebDAV 基础认证凭据。AList 后台 → 用户管理 → 用户名/密码。
+//          base64 编码后通过 Authorization 头发送。
+// shareBase: OpenList/AList 分享直链。用于「查看脚本内容」。
+//          在 AList 后台 → 分享管理 → 创建分享 → 分享链接格式：
+//          http://<IP>:<端口>/sd/<分享路径>/
+//          需要在 AList 后台开启「分享直链」功能。
+// 列表 API: 写死在 loadRecords 函数里，格式：
+//          http://<IP>:<端口>/api/fs/list?path=<分享路径>
+//          无认证，仅用于读列表，不用于上传。
+UP.wdUrl = 'http://81.68.84.205:5244/dav';
+UP.wdUser = '123456';
+UP.wdPass = '123456';
+UP.shareBase = 'http://81.68.84.205:5244/sd/BD/';
+// ---- IndexedDB 缓存 ----
+var DB_NAME = 'skyflash_script_cache';
+var DB_VER = 1;
+var DB_STORE = 'scripts';
+function openDB() {
+    return new Promise(function(resolve, reject) {
+        var req = indexedDB.open(DB_NAME, DB_VER);
+        req.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) {
+                db.createObjectStore(DB_STORE, { keyPath: 'file_id' });
+            }
+        };
+        req.onsuccess = function(e) { resolve(e.target.result); };
+        req.onerror = function(e) { reject(e.target.error); };
     });
 }
-
-function rebootRec() {
-    showConfirm('确认', '确认重启到Recovery？', async () => {
-        setModuleStatus('toolbox', '工具箱状态：正在重启到 Recovery。', 'warn');
-        showModuleProgress('toolbox', '重启 Recovery');
-        updateModuleProgress('toolbox', 50, '已发送重启命令');
-        await sendRebootCommand('recovery');
-        updateModuleProgress('toolbox', 100, '命令已发送');
-        setModuleStatus('toolbox', '工具箱状态：已发送重启到 Recovery 指令。', 'ok');
-        writeLog('已发送重启到REC指令', 'ok');
-    }, false);
-}
-
-function rebootFb() {
-    showConfirm('确认', '确认重启到Fastboot？', async () => {
-        setModuleStatus('toolbox', '工具箱状态：正在重启到 Fastboot/Bootloader。', 'warn');
-        showModuleProgress('toolbox', '重启 Fastboot');
-        await sendRebootCommand('fastboot');
-        writeLog('已发送重启到Fastboot指令', 'ok');
-        // sendRebootCommand 内部已包含 waitForReconnectAfterReconnect，无需重复等待
-    }, false);
-}
-
-function rebootBootloader() {
-    showConfirm('确认', '确认重启到Bootloader？Bootloader 模式下才能执行 fastboot 刷写、解锁、切槽等操作。', async () => {
-        setModuleStatus('toolbox', '工具箱状态：正在重启到 Bootloader。', 'warn');
-        showModuleProgress('toolbox', '重启 Bootloader');
-        await sendRebootCommand('bootloader');
-        writeLog('已发送重启到Bootloader指令', 'ok');
-        // sendRebootCommand 内部已包含 waitForReconnectAfterReconnect，无需重复等待
-    }, false);
-}
-
-async function readDeviceInfo() {
-    try {
-        setModuleStatus('toolbox', '工具箱状态：正在读取设备信息。', 'info');
-        showModuleProgress('toolbox', '读取设备信息');
-        updateModuleProgress('toolbox', 50, '查询中');
-        const res = await apiGet('/api/device/info');
-        if (res.success) {
-            updateModuleProgress('toolbox', 100, '读取完成');
-            deviceInfo = res.info || {};
-            if (deviceInfo.current_slot) {
-                currentSlot = String(deviceInfo.current_slot).replace(/^_/, '').toLowerCase();
-                updateToolCurrentSlotBadge();
-            }
-            updateDeviceInfoSummary();
-            updateSmartUI();
-            setModuleStatus('toolbox', '工具箱状态：设备信息读取完成。', 'ok');
-            writeDeviceInfoHumanLog(deviceInfo);
-            writeLog('完整设备信息已读取完成。', 'tip');
-        } else {
-            hideModuleProgress('toolbox');
-            setModuleStatus('toolbox', `工具箱状态：读取设备信息失败：${res.error || '未知错误'}`, 'err');
-            writeLog(res.error || '读取设备信息失败', 'err');
-        }
-    } catch(e) {
-        hideModuleProgress('toolbox');
-        setModuleStatus('toolbox', `工具箱状态：读取设备信息异常：${e.message}`, 'err');
-        writeLog('读取设备信息异常：' + e.message, 'err');
-    }
-}
-
-// ============ 切槽位 ============
-const switchSlotTask = new ModuleTask('工具箱', '切槽');
-function switchSlot() {
-    const slot = document.getElementById('slotSelect').value;
-    switchSlotTask.confirm('确认', `切换到 ${slot.toUpperCase()} 槽？`, async () => {
-        switchSlotTask.status(`正在切换到 ${slot.toUpperCase()} 槽。`, 'warn');
-        switchSlotTask.showProgress('切换槽位');
-        switchSlotTask.updateProgress(50, '命令已发送');
-        if (appRunMode === 'webusb' && webusbFastbootReady) {
-            await webusbFastboot.command(`set_active:${slot}`);
-        } else {
-            await apiPost('/api/fastboot', {args: ['set_active', slot]});
-        }
-        switchSlotTask.updateProgress(100, '切换完成');
-        switchSlotTask.status(`已切换到 ${slot.toUpperCase()} 槽。`, 'ok');
-        switchSlotTask.log(`已切换到${slot}槽`, 'ok');
-        await loadDeviceSlot();
-    });
-}
-
-// ============ 双清 ============
-async function webusbEraseWithFallback(part) {
-    // 在新机型上 userdata/cache 多为动态分区，需要 fastbootd（reboot fastboot）。
-    // 这里依次尝试：part、part_a、part_b，把 "doesn't exist" 视为该候选不存在。
-    const candidates = [part, part + '_a', part + '_b'];
-    let lastErr = null;
-    let ok = false;
-    for (const name of candidates) {
-        try {
-            await webusbFastboot.command('erase:' + name);
-            writeLog(`WebUSB 已擦除分区：${name}`, 'ok');
-            ok = true;
-        } catch (e) {
-            const msg = (e && e.message) ? e.message : String(e);
-            lastErr = msg;
-            // 分区不存在：跳过尝试下一个候选
-            if (/doesn'?t exist|partition does not exist|not found/i.test(msg)) {
-                writeLog(`WebUSB 分区不存在，跳过：${name}`, 'tip');
-                continue;
-            }
-            // 其它错误：直接抛出
-            throw e;
-        }
-    }
-    if (!ok) {
-        // 全部候选都不存在：给出明确提示
-        throw new Error(`未找到 ${part} 分区。如设备处于 Bootloader Fastboot，请先进入 fastbootd（adb reboot fastboot 或 fastboot reboot fastboot）后重试。原始信息：${lastErr || ''}`);
-    }
-}
-
-const wipeTask = new ModuleTask('工具箱', '双清');
-function wipeData() {
-    wipeTask.confirm('高危操作确认',
-        '双清会清除所有数据（照片、应用、文件），完全不可恢复，确认继续？',
-        async () => {
-            wipeTask.status('正在执行双清 userdata/cache。', 'warn');
-            wipeTask.showProgress('双清中');
-            wipeTask.log('开始双清');
-            if (appRunMode === 'webusb' && webusbFastbootReady) {
-                await webusbEraseWithFallback('userdata');
-            } else {
-                await apiPost('/api/fastboot', {args: ['erase', 'userdata']});
-            }
-            wipeTask.updateProgress(50, 'userdata 已擦除');
-            if (appRunMode === 'webusb' && webusbFastbootReady) {
-                // cache 在新机型上常常已被去除：缺失视为正常
-                try {
-                    await webusbEraseWithFallback('cache');
-                } catch (eCache) {
-                    const cmsg = (eCache && eCache.message) ? eCache.message : String(eCache);
-                    if (/未找到 cache/.test(cmsg)) {
-                        wipeTask.log('设备无 cache 分区，已忽略。', 'tip');
-                    } else {
-                        throw eCache;
-                    }
-                }
-            } else {
-                try {
-                    await apiPost('/api/fastboot', {args: ['erase', 'cache']});
-                } catch (eCache) {
-                    const cmsg = (eCache && eCache.message) ? eCache.message : String(eCache);
-                    if (/doesn'?t exist|partition does not exist|not found/i.test(cmsg)) {
-                        wipeTask.log('设备无 cache 分区，已忽略。', 'tip');
-                    } else {
-                        throw eCache;
-                    }
-                }
-            }
-            wipeTask.updateProgress(100, '双清完成');
-            wipeTask.status('双清完成。', 'ok');
-            wipeTask.log('双清完成', 'ok');
-            showToast('双清操作完成');
+function getCache(fileId) {
+    return openDB().then(function(db) {
+        return new Promise(function(resolve, reject) {
+            var tx = db.transaction(DB_STORE, 'readonly');
+            var req = tx.objectStore(DB_STORE).get(fileId);
+            req.onsuccess = function() { resolve(req.result); };
+            req.onerror = function() { resolve(null); };
         });
+    });
 }
-
-// ============ 擦除metadata ============
-function wipeMetadata() {
-    showConfirm('高危操作确认',
-        '擦除 metadata 分区会清除设备加密状态、OEM Unlock 计数等信息。此操作不可恢复，确认继续？',
-        async () => {
-            setModuleStatus('toolbox', '工具箱状态：正在擦除 metadata 分区...', 'warn');
-            showModuleProgress('toolbox', '擦除 metadata');
-            writeLog('开始擦除 metadata');
-            try {
-                if (appRunMode === 'webusb' && webusbFastbootReady) {
-                    await webusbEraseWithFallback('metadata');
+function putCache(record) {
+    return openDB().then(function(db) {
+        record.cached_at = Date.now();
+        return new Promise(function(resolve, reject) {
+            var tx = db.transaction(DB_STORE, 'readwrite');
+            var req = tx.objectStore(DB_STORE).put(record);
+            req.onsuccess = function() { resolve(); };
+            req.onerror = function() { resolve(); };
+        });
+    });
+}
+// ---- 基础 XHR 请求（自包含）----
+function _send(method, relPath, body, onOk, onErr) {
+    var xhr = new XMLHttpRequest();
+    var encodedPath = '';
+    for (var i = 0; i < relPath.length; i++) {
+        if (relPath.charCodeAt(i) > 127) {
+            encodedPath += encodeURIComponent(relPath.charAt(i));
+        } else {
+            encodedPath += relPath.charAt(i);
+        }
+    }
+    var url = UP.wdUrl + '/' + encodedPath;
+    xhr.open(method, url, true);
+    xhr.setRequestHeader('Authorization', 'Basic ' + btoa(UP.wdUser + ':' + UP.wdPass));
+    if (body != null) {
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    }
+    xhr.onload = function() {
+        if (method === 'PUT') {
+            if (xhr.status === 201 || xhr.status === 204) onOk(xhr);
+            else onErr(xhr);
+        } else {
+            if (xhr.status === 200) onOk(xhr);
+            else onErr(xhr);
+        }
+    };
+    xhr.onerror = function() { onErr(xhr); };
+    xhr.send(body || null);
+}
+// ---- 解析文件名状态 ----
+function parseFileStatus(name) {
+    // 去除 yes_ / no_ 前缀，返回 { rawName, displayName, status }
+    // status: 'supported' | 'unsupported' | 'pending'
+    var rawName = name;
+    var displayName = name;
+    var status = 'pending';
+    if (name.indexOf('yes_') === 0) {
+        status = 'supported';
+        rawName = name.slice(4);
+        displayName = rawName;
+    } else if (name.indexOf('no_') === 0) {
+        status = 'unsupported';
+        rawName = name.slice(3);
+        displayName = rawName;
+    }
+    // displayName 提取原始文件名（去掉时间戳前缀）
+    var parts = rawName.split('_');
+    // 格式: 时间戳_随机数_原始文件名
+    if (parts.length >= 3 && /^\d{14}$/.test(parts[0])) {
+        displayName = parts.slice(2).join('_');
+    }
+    return { rawName: rawName, displayName: displayName, status: status, originName: name };
+}
+// ---- 通过 OpenList API 获取文件列表（无 CORS 问题）----
+function loadRecords(cb) {
+    // 用 WebDAV PROPFIND 获取文件列表（与上传同一认证 123456/123456）
+    var xhr = new XMLHttpRequest();
+    xhr.open('PROPFIND', UP.wdUrl + '/', true);
+    xhr.setRequestHeader('Authorization', 'Basic ' + btoa(UP.wdUser + ':' + UP.wdPass));
+    xhr.setRequestHeader('Depth', '1');
+    xhr.onload = function() {
+        if (xhr.status !== 207) { cb([]); return; }
+        try {
+            var xml = xhr.responseXML;
+            if (!xml) { cb([]); return; }
+            var hrefs = xml.querySelectorAll('D\\:href, href');
+            // 实际元素可能是 d:href 或 D:href 或直接 href，但部分浏览器解析不同
+            // 改用字符串解析更可靠
+            var text = xhr.responseText;
+            var records = [];
+            var regex = /<d:href>([^<]+)<\/d:href>|<D:href>([^<]+)<\/D:href>|<href>([^<]+)<\/href>/gi;
+            var match;
+            var names = [];
+            while ((match = regex.exec(text)) !== null) {
+                var href = match[1] || match[2] || match[3];
+                // 保留原始编码 href，同时解码用于显示
+                var rawEncodedName = href.split('/').filter(function(s){return s}).pop() || href;
+                href = decodeURIComponent(href);
+                // 只取文件名部分（解码后）
+                var parts = href.split('/');
+                var name = parts[parts.length - 1];
+                if (name && name !== '' && name !== 'BD' && !name.endsWith('/')) {
+                    names.push({ decoded: name, encoded: rawEncodedName });
+                }
+            }
+            // 去重
+            var unique = {};
+            for (var i = 0; i < names.length; i++) {
+                unique[names[i].decoded] = names[i];
+            }
+            for (var name in unique) {
+                var entry = unique[name];
+                var parsed = parseFileStatus(name);
+                records.push({
+                    file_id: parsed.rawName,
+                    origin_name: parsed.originName,
+                    original_name: parsed.displayName,
+                    raw_href: entry.encoded,
+                    status: parsed.status,
+                    script_type: name.indexOf('.sh') > 0 ? 'sh' : 'bat',
+                    upload_time: ''
+                });
+            }
+            // 按 status 排序：未处理 > 已处理 > 不支持
+            records.sort(function(a, b) {
+                var order = { pending: 0, supported: 1, unsupported: 2 };
+                var oa = order[a.status] || 0;
+                var ob = order[b.status] || 0;
+                return oa - ob;
+            });
+            cb(records);
+        } catch(e) { cb([]); }
+    };
+    xhr.onerror = function() { cb([]); };
+    xhr.send(null);
+}
+// ---- 语法高亮（暗色主题，带行号）----
+function highlightCode(code, name) {
+    var isSh = name && name.indexOf('.sh') > 0;
+    var lines = code.split('\n');
+    var r = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i], t = line.trimStart();
+        r.push('<span class="code-line-num">' + (i + 1) + '</span>');
+        if ((isSh && (t.startsWith('#') || t.startsWith('//'))) || (!isSh && (t.startsWith('::') || t.startsWith('REM ') || t.startsWith('rem ')))) {
+            r.push('<span class="code-comment">' + escHtml(line) + '</span>\n');
+            continue;
+        }
+        var p = escHtml(line);
+        if (isSh) {
+            p = p.replace(/(\$\{?\w+\}?)/g, '<span class="code-var">$1</span>');
+        } else {
+            p = p.replace(/(%[^%]+?%)/g, '<span class="code-var">$1</span>');
+            p = p.replace(/(!\w+!)/g, '<span class="code-var-orange">$1</span>');
+        }
+        p = p.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="code-string">$1</span>');
+        p = p.replace(/\b(fastboot|adb)\b/gi, '<span class="code-cmd">$1</span>');
+        r.push(p);
+        r.push('\n');
+    }
+    return r.join('');
+}
+// ---- 查看弹窗（暗色主题）----
+function buildScriptViewer(name, content) {
+    var overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay show';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:2000;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:20px 0;';
+    var box = document.createElement('div');
+    box.className = 'script-viewer-box';
+    var header = document.createElement('div');
+    header.className = 'script-viewer-header';
+    header.innerHTML = '<strong class="script-viewer-title">📄 ' + escHtml(name) + '</strong>' +
+        '<button class="script-viewer-close" data-action="close-script-viewer">✕</button>';
+    var body = document.createElement('pre');
+    body.className = 'script-viewer-body';
+    body.innerHTML = highlightCode(content, name);
+    box.appendChild(header);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+}
+// ---- 通过 WebDAV 直连下载（降级用，文件名与服务器一致）----
+function fetchScriptViaDirect(fileId, rawHref) {
+    rawHref = rawHref || fileId;
+    return new Promise(function(resolve, reject) {
+        // 纯前端多路径尝试，自动处理 URL 编码
+        var auth = btoa(UP.wdUser + ':' + UP.wdPass);
+        // rawHref 是 PROPFIND 返回的原始编码文件名，优先级最高
+        // encoded 是前端 encodeURIComponent 编码
+        // fileId 是解码后的原始中文名
+        var encoded = encodeURIComponent(fileId);
+        var paths = [
+            { url: UP.wdUrl + '/' + rawHref, auth: auth },
+            { url: UP.wdUrl + '/BD/' + rawHref, auth: auth },
+            { url: 'http://81.68.84.205:5244/sd/flash_tool/' + rawHref, auth: null },
+            { url: UP.wdUrl + '/' + encoded, auth: auth },
+            { url: UP.wdUrl + '/' + fileId, auth: auth },
+            { url: UP.wdUrl + '/BD/' + encoded, auth: auth },
+            { url: UP.wdUrl + '/BD/' + fileId, auth: auth },
+            { url: 'http://81.68.84.205:5244/sd/flash_tool/' + encoded, auth: null },
+            { url: 'http://81.68.84.205:5244/sd/flash_tool/' + fileId, auth: null }
+        ];
+        function tryNext(idx) {
+            if (idx >= paths.length) {
+                reject(new Error('所有路径都失败'));
+                return;
+            }
+            var p = paths[idx];
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', p.url, true);
+            if (p.auth) xhr.setRequestHeader('Authorization', 'Basic ' + auth);
+            xhr.onload = function() {
+                if (xhr.status === 200 && xhr.responseText && xhr.responseText.trim().length > 0) {
+                    resolve(xhr.responseText);
                 } else {
-                    try {
-                        await apiPost('/api/fastboot', {args: ['erase', 'metadata']});
-                    } catch(e) {
-                        const msg = (e && e.message) ? e.message : String(e);
-                        if (/doesn'?t exist|partition does not exist|not found/i.test(msg)) {
-                            writeLog('设备无 metadata 分区，已忽略。', 'tip');
-                        } else {
-                            throw e;
-                        }
-                    }
+                    tryNext(idx + 1);
                 }
-                updateModuleProgress('toolbox', 100, 'metadata 已擦除');
-                setModuleStatus('toolbox', '工具箱状态：metadata 擦除完成。', 'ok');
-                writeLog('metadata 擦除完成', 'ok');
-                showToast('metadata 擦除完成');
-            } catch(e) {
-                hideModuleProgress('toolbox');
-                setModuleStatus('toolbox', `工具箱状态：metadata 擦除失败：${e.message}`, 'err');
-                writeLog('metadata 擦除失败：' + e.message, 'err');
+            };
+            xhr.onerror = function() { tryNext(idx + 1); };
+            xhr.send();
+        }
+        tryNext(0);
+    });
+}
+// ---- 查看脚本（IndexedDB 缓存 → WebDAV 直连降级）----
+function viewUploadedScript(fileId, rawHref) {
+    rawHref = rawHref || fileId;
+    // ① 先查 IndexedDB 缓存
+    getCache(fileId).then(function(cached) {
+        if (cached && cached.content) {
+            buildScriptViewer(cached.name || fileId, cached.content);
+            return;
+        }
+        // ② 缓存没有 → 纯前端多路径直连
+        showToast('正在加载...');
+        fetchScriptViaDirect(fileId, rawHref).then(function(content) {
+            putCache({ file_id: fileId, name: fileId, content: content });
+            // 显示时提取原始文件名
+            var displayName = fileId;
+            var parts = fileId.split('_');
+            if (parts.length >= 3 && /^\d{14}$/.test(parts[0])) {
+                displayName = parts.slice(2).join('_');
             }
+            buildScriptViewer(displayName, content);
+        }).catch(function() {
+            showToast('无法加载脚本内容');
         });
+    });
+}
+// ---- 上传后自动缓存到 IndexedDB ----
+function cacheUploadedScript(fileId, name, content) {
+    putCache({ file_id: fileId, name: name, content: content });
+}
+// ---- 刷新上传列表 ----
+function refreshUploadList() {
+    var listEl = document.getElementById('uploadHistoryList');
+    if (!listEl) return;
+    loadRecords(function(records) {
+        if (!records.length) {
+            listEl.innerHTML = '<div class="upload-empty-tip">暂无上传记录</div>';
+            return;
+        }
+        listEl.innerHTML = records.map(function(f) {
+            var statusText, statusColor, statusLabel;
+            if (f.status === 'supported') { statusText = '已处理'; statusColor = '#30d158'; statusLabel = '✅'; }
+            else if (f.status === 'unsupported') { statusText = '不支持'; statusColor = '#ff453a'; statusLabel = '❌'; }
+            else { statusText = '未处理'; statusColor = '#8e8e93'; statusLabel = '⏳'; }
+            return '<div class="upload-history-item" data-action="view-uploaded-script" data-file-id="' + escHtml(f.file_id) + '" data-raw-href="' + escHtml(f.raw_href || '') + '">' +
+                '<div class="upload-history-name" style="font-size:13px;font-weight:600;margin-bottom:4px;">' + escHtml(f.original_name) + '</div>' +
+                '<div class="upload-history-meta">' +
+                '<span style="color:' + statusColor + ';font-weight:600">' + statusLabel + ' ' + statusText + '</span>' +
+                '<span class="upload-history-type">' + f.script_type + '</span>' +
+                (f.upload_time ? '<span>' + f.upload_time + '</span>' : '') +
+                '</div></div>';
+        }).join('');
+    });
+}
+// ---- 打开/关闭对话框 ----
+function openUploadDialog() {
+    var dialog = document.getElementById('uploadDialog');
+    if (!dialog) return;
+    dialog.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    // 阻止对话框自身滚动传播
+    if (!dialog._scrollLock) {
+        dialog._scrollLock = function(e) {
+            if (e.target.closest('#uploadHistoryList')) return;
+            if (e.target.closest('#uploadPreviewContent')) return;
+            e.preventDefault();
+        };
+        dialog.addEventListener('touchmove', dialog._scrollLock, { passive: false });
+    }
+    document.getElementById('uploadFileInput').value = '';
+    document.getElementById('uploadPreview').style.display = 'none';
+    document.getElementById('uploadPreviewContent').textContent = '';
+    document.getElementById('uploadHydraResult').style.display = 'none';
+    document.getElementById('uploadProgressWrap').style.display = 'none';
+    document.getElementById('uploadResult').style.display = 'none';
+    document.getElementById('uploadSubmitBtn').disabled = true;
+    _selectedUploadFile = null;
+    refreshUploadList();
+}
+function closeUploadDialog() {
+    var dialog = document.getElementById('uploadDialog');
+    if (dialog) {
+        dialog.classList.remove('show');
+        if (dialog._scrollLock) {
+            dialog.removeEventListener('touchmove', dialog._scrollLock);
+            dialog._scrollLock = null;
+        }
+    }
+    document.body.style.overflow = '';
+}
+// ---- 选文件 ----
+function onUploadFileSelect(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (['.bat','.cmd','.sh','.txt'].indexOf(ext) === -1) {
+        showToast('仅支持 .bat/.cmd/.sh/.txt 格式');
+        event.target.value = '';
+        return;
+    }
+    if (file.size > 1024 * 1024) {
+        showToast('文件超过 1MB 限制');
+        event.target.value = '';
+        return;
+    }
+    _selectedUploadFile = file;
+    document.getElementById('uploadSubmitBtn').disabled = false;
+    document.getElementById('uploadFileInfo').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var lines = e.target.result.split('\n');
+        var previewEl = document.getElementById('uploadPreview');
+        var contentEl = document.getElementById('uploadPreviewContent');
+        previewEl.style.display = '';
+        contentEl.textContent = lines.slice(0, 20).join('\n') + (lines.length > 20 ? '\n...' : '');
+        document.getElementById('uploadTotalLines').textContent = '共 ' + lines.length + ' 行';
+    };
+    reader.readAsText(file);
+}
+// ---- 上传脚本 ----
+function submitUpload() {
+    if (!_selectedUploadFile || _isUploading) return;
+    _isUploading = true;
+    var btn = document.getElementById('uploadSubmitBtn');
+    var progressWrap = document.getElementById('uploadProgressWrap');
+    var progressBar = document.getElementById('uploadProgressBar');
+    var result = document.getElementById('uploadResult');
+    var fileInput = document.getElementById('uploadFileInput');
+    btn.disabled = true;
+    btn.textContent = '上传中...';
+    progressWrap.style.display = '';
+    progressBar.style.width = '10%';
+    result.style.display = 'none';
+    var file = _selectedUploadFile;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var content = e.target.result;
+        var ts = new Date().toISOString().replace(/[T:.-]/g,'').slice(0,14);
+        var rand = Math.random().toString(36).slice(2,8);
+        var safeName = ts + '_' + rand + '_' + file.name;
+        // 直接上传到 WebDAV，不写 records.json
+        _send('PUT', safeName, content,
+            function() {
+                progressBar.style.width = '100%';
+                // 上传成功后自动缓存到 IndexedDB
+                cacheUploadedScript(safeName, file.name, content);
+                result.style.display = '';
+                result.className = 'upload-result success';
+                result.textContent = '✅ 上传成功';
+                btn.disabled = false;
+                btn.textContent = '确认上传';
+                _isUploading = false;
+                _selectedUploadFile = null;
+                if (fileInput) fileInput.value = '';
+                document.getElementById('uploadFileInfo').textContent = '';
+                setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
+                refreshUploadList();
+            },
+            function() {
+                result.style.display = '';
+                result.className = 'upload-result error';
+                result.textContent = '❌ 上传失败';
+                btn.disabled = false;
+                btn.textContent = '确认上传';
+                _isUploading = false;
+                setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
+            }
+        );
+    };
+    reader.onerror = function() {
+        _isUploading = false;
+        btn.disabled = false;
+        btn.textContent = '确认上传';
+        showToast('读取文件失败');
+    };
+    reader.readAsText(file);
+}
+// ---- HTML 转义 ----
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(b) {
+        return {'&':'&','<':'<','>':'>','"':'"',"'":'&#039;'}[b];
+    });
+}
+// ---- Toast 提示 ----
+function showToast(msg) {
+    var el = document.getElementById('uploadToast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'uploadToast';
+        el.className = 'upload-toast';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(function() { el.style.opacity = '0'; }, 2500);
+}
+// ---- 快速上传 ----
+function quickUploadScript() {
+    openUploadDialog();
 }
 
-async function sendRebootCommand(target) {
-    const t = target || 'system';
-    if (!canFastboot && !webusbFastbootReady && !canAdb && !webusbAdbReady) {
-        showToast('请先检测设备');
-        return false;
+// ============ 上传模块事件委托 ============
+function handleUploadAction(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.dataset.action;
+    if (action === 'view-uploaded-script') {
+        e.preventDefault();
+        viewUploadedScript(btn.dataset.fileId, btn.dataset.rawHref);
+    } else if (action === 'close-script-viewer') {
+        e.preventDefault();
+        var overlay = btn.closest('.dialog-overlay');
+        if (overlay) overlay.remove();
     }
-    showModuleProgress('toolbox', `重启到 ${t}…`);
-    try {
-        if (appRunMode === 'webusb' && (webusbFastbootReady || webusbAdbReady)) {
-            // WebUSB 模式：runWebUsbFastbootCommand 内部已自动处理 fastboot/adb 设备选择
-            // 对于 ADB 设备重启到 fastboot，target 应传 'bootloader'
-            const webusbTarget = (webusbAdbReady && t === 'fastboot') ? 'bootloader' : t;
-            await runWebUsbFastbootCommand({command: 'reboot', target: webusbTarget});
-        } else {
-            // 后端模式：后端 reboot_device 会自动选择 fastboot/adb
-            const res = await apiPost('/api/reboot', {target: t});
-            if (!res.success) throw new Error(res.error || res.msg || '重启失败');
-        }
-        writeLog(`已发送重启到 ${t} 指令`, 'ok');
-        showToast(`已重启到 ${t}`);
-        canFastboot = false;
-        canAdb = false;
-        deviceMode = '';
-        updateBtnState();
-        setModuleStatus('toolbox', `工具箱状态：已重启到 ${t}，等待设备重连...`, 'ok');
-
-        // 重启后自动等待设备重连（最多 60 秒）
-        // WebUSB 模式下需要重新枚举设备，跳过后端检测
-        if (appRunMode !== 'webusb') {
-            await waitForReconnectAfterReboot(t);
-        } else {
-            writeLog('WebUSB 模式：请重新点击「检测设备」连接设备', 'warn');
-            setModuleStatus('toolbox', '工具箱状态：WebUSB 模式，请重新检测设备', 'warn');
-        }
-        return true;
-    } catch(e) {
-        writeLog('重启失败：' + e.message, 'err');
-        setModuleStatus('toolbox', `工具箱状态：重启失败：${e.message}`, 'err');
-        showToast('重启失败：' + e.message);
-        return false;
-    } finally {
-        hideModuleProgress('toolbox');
-    }
-}
-
-// 重启后等待设备重连
-async function waitForReconnectAfterReboot(target) {
-    const targetLabel = target === 'system' ? '系统' : (target === 'recovery' ? 'Recovery' : (target === 'fastboot' || target === 'bootloader' ? 'Fastboot' : target));
-    writeLog(`等待设备重连到 ${targetLabel} 模式...`, 'info');
-    setModuleStatus('toolbox', `工具箱状态：等待设备重连到 ${targetLabel}...`, 'info');
-
-    // 等待 3 秒让设备离线
-    await new Promise(r => setTimeout(r, 3000));
-
-    const maxAttempts = 30; // 30 次 * 2 秒 = 60 秒
-    for (let i = 0; i < maxAttempts; i++) {
-        if (typeof writeLog === 'function' && i === 0) {
-            writeLog(`开始检测设备重连（最多等待 60 秒）`, 'info');
-        }
-        try {
-            const resp = await fetch('/api/device/state');
-            const data = await resp.json();
-            const mode = data.mode || 'none';
-            const canFb = !!data.can_fastboot;
-            const canAdbDevice = !!data.can_adb;
-
-            // 重启到 fastboot/bootloader 模式
-            if ((target === 'fastboot' || target === 'bootloader') && mode === 'fastboot' && canFb) {
-                writeLog(`设备已重连到 Fastboot 模式`, 'ok');
-                setModuleStatus('toolbox', '工具箱状态：设备已重连到 Fastboot', 'ok');
-                // 更新全局设备状态
-                canFastboot = true;
-                canAdb = false;
-                deviceMode = 'fastboot';
-                if (typeof updateBtnState === 'function') updateBtnState();
-                // 自动刷新设备信息
-                if (typeof refreshDeviceInfoAuto === 'function') {
-                    try { await refreshDeviceInfoAuto(); } catch(e) {}
-                }
-                return true;
-            }
-            // 重启到 recovery 模式（ADB 模式的一种）
-            if (target === 'recovery' && canAdbDevice && (mode === 'recovery' || mode === 'device' || mode === 'sideload')) {
-                writeLog(`设备已重连到 Recovery 模式`, 'ok');
-                setModuleStatus('toolbox', '工具箱状态：设备已重连到 Recovery', 'ok');
-                canFastboot = false;
-                canAdb = true;
-                deviceMode = mode;
-                if (typeof updateBtnState === 'function') updateBtnState();
-                return true;
-            }
-            // 重启到系统
-            if ((target === 'system' || target === '') && mode === 'device' && canAdbDevice) {
-                writeLog(`设备已重连到系统`, 'ok');
-                setModuleStatus('toolbox', '工具箱状态：设备已重连到系统', 'ok');
-                canFastboot = false;
-                canAdb = true;
-                deviceMode = 'device';
-                if (typeof updateBtnState === 'function') updateBtnState();
-                return true;
-            }
-        } catch(e) {
-            // 网络错误忽略
-        }
-        await new Promise(r => setTimeout(r, 2000));
-    }
-    writeLog(`设备重连超时（60秒），请手动检测设备`, 'warn');
-    setModuleStatus('toolbox', `工具箱状态：设备重连超时，请手动点击「检测设备」`, 'warn');
-    if (typeof showToast === 'function') showToast('设备重连超时，请手动检测设备');
-    return false;
 }
 
 // ============ 模块初始化 ============
-Modules.register('toolbox-ops', ['api','utils','device-info'], function initToolboxOpsModule() {
-    document.getElementById('rebootSysBtn').onclick = rebootSys;
-    document.getElementById('rebootRecBtn').onclick = rebootRec;
-    document.getElementById('rebootFbBtn').onclick = rebootFb;
-    document.getElementById('rebootBootloaderBtn').onclick = rebootBootloader;
-    document.getElementById('readDeviceInfoBtn').onclick = readDeviceInfo;
-    document.getElementById('setSlotBtn').onclick = switchSlot;
-    document.getElementById('wipeBtn').onclick = wipeData;
-    document.getElementById('wipeMetadataBtn').onclick = wipeMetadata;
+Modules.register('upload', [], function initUploadModule() {
+    // 脚本列表点击与查看器关闭按钮都通过 body 事件委托处理，
+    // 避免在 uploadHistoryList 上再注册一次导致弹窗打开两次。
+    document.body.addEventListener('click', handleUploadAction);
 
-    console.log('[toolbox-ops] 工具箱操作模块已初始化');
+    var uploadFileInput = document.getElementById('uploadFileInput');
+    if (uploadFileInput) uploadFileInput.onchange = onUploadFileSelect;
+
+    // 点击外部关闭
+    document.addEventListener('click', function(e) {
+        var dialog = document.getElementById('uploadDialog');
+        if (dialog && dialog.classList.contains('show') && e.target === dialog) {
+            closeUploadDialog();
+        }
+    });
+
+    console.log('[upload] 上传模块已初始化');
     return true;
 });

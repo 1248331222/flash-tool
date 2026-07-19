@@ -7,8 +7,10 @@ module.exports = {
         var fileApi = ctx.fileApi;
         var delayedExpansion = false;
 
+        // ========== 工具函数 ==========
         function resolveVars(text) {
             text = text.replace(/%~dp0/gi, romDir + '/');
+            // 保留 %* 和 %1-%9
             text = text.replace(/%(\w+)%/g, function(_, name) {
                 if (name === '*' || /^[1-9]$/.test(name)) return _;
                 return vars[name] !== undefined ? vars[name] : _;
@@ -75,59 +77,51 @@ module.exports = {
             var globalParams = [];
             while (rest.length && rest[0].startsWith('--')) globalParams.push(rest.shift());
             if (prefixParams) globalParams = prefixParams.split(/\s+/).concat(globalParams);
-
-            // 跳过占位符 %* 和 %1-%9
-            var skippedPlaceholders = [];
-            while (rest.length && /^%[\*1-9]$/.test(rest[0])) skippedPlaceholders.push(rest.shift());
-            if (rest.length === 0) return null;
-
-            var action = rest[0].toLowerCase();
-            var afterAction = rest.slice(1);
-            var allParts = skippedPlaceholders.concat(rest);
-            var rawBase = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' ' + allParts.join(' ');
-
-            // getvar 不生成步骤
-            if (action === 'getvar') return null;
+            var action = rest[0] ? rest[0].toLowerCase() : '';
 
             if (action === '-w') {
-                return { type: 'raw', raw: rawBase, risk: 'HIGH' };
+                return { type: 'raw', raw: 'fastboot -w', risk: 'HIGH' };
+            }
+            if (action === 'getvar') {
+                return { type: 'getvar', raw: 'fastboot ' + rest.join(' '), risk: 'LOW' };
             }
             if (action === 'flash') {
-                var partition = afterAction[0] || '';
-                var imagePath = normalizePath(afterAction[1] || '');
-                var extraParams = afterAction.slice(2).join(' ');
+                var partition = rest[1] || '';
+                var imagePath = normalizePath(rest[2] || '');
+                var extraParams = rest.slice(3).join(' ');
+                var raw = 'fastboot' + (globalParams.length ? ' ' + globalParams.join(' ') : '') + ' flash ' + partition + ' ' + imagePath + (extraParams ? ' ' + extraParams : '');
                 return {
                     type: 'flash', partition: partition, imagePath: imagePath,
-                    raw: rawBase, risk: getRisk(partition),
+                    raw: raw, risk: getRisk(partition),
                     prefixParams: globalParams.join(' ') || undefined,
                     params: extraParams || undefined
                 };
             }
             if (action === 'erase') {
-                return { type: 'erase', partition: afterAction[0] || '', raw: rawBase, risk: 'HIGH' };
+                return { type: 'erase', partition: rest[1] || '', raw: 'fastboot erase ' + rest[1], risk: 'HIGH' };
             }
             if (action === 'reboot') {
-                var target = afterAction.join(' ') || 'system';
-                return { type: 'reboot', target: target, raw: rawBase, risk: 'LOW' };
+                var target = rest.slice(1).join(' ') || 'system';
+                return { type: 'reboot', target: target, raw: 'fastboot reboot' + (target !== 'system' ? ' ' + target : ''), risk: 'LOW' };
             }
             if (action === 'set_active' || action === '--set-active') {
-                return { type: 'set_active', partition: afterAction[0] || '', raw: rawBase, risk: 'MEDIUM' };
+                return { type: 'set_active', partition: rest[1] || '', raw: 'fastboot set_active ' + rest[1], risk: 'MEDIUM' };
             }
             if (action === 'delete-logical-partition') {
-                return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+                return { type: 'raw', raw: 'fastboot delete-logical-partition ' + rest[1], risk: 'MEDIUM' };
             }
             if (action === 'devices') {
-                return { type: 'raw', raw: rawBase, risk: 'LOW' };
+                return { type: 'raw', raw: 'fastboot devices', risk: 'LOW' };
             }
-            return { type: 'raw', raw: rawBase, risk: 'MEDIUM' };
+            return { type: 'raw', raw: 'fastboot ' + rest.join(' '), risk: 'MEDIUM' };
         }
 
         function getRisk(part) {
             var map = { xbl:'CRITICAL',xbl_config:'CRITICAL',abl:'CRITICAL',bootloader:'CRITICAL',preloader_raw:'CRITICAL',modem:'HIGH',frp:'HIGH',metadata:'HIGH' };
-            return map[(part || '').toLowerCase()] || 'MEDIUM';
+            return map[part.toLowerCase()] || 'MEDIUM';
         }
 
-        // 收集 set
+        // ========== 第一阶段：收集 set 变量 ==========
         var lines = content.split(/\r?\n/);
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
@@ -137,6 +131,7 @@ module.exports = {
         }
         for (var k in vars) vars[k] = resolveVars(vars[k]);
 
+        // ========== 第二阶段：状态机 + 递归处理 ==========
         async function processLines(linesArray, localVars, forStack) {
             var savedVars = Object.assign({}, vars);
             if (localVars) Object.assign(vars, localVars);
@@ -147,17 +142,14 @@ module.exports = {
             async function executeLine(line) {
                 line = expandAllForVars(line, stack);
                 line = resolveVars(line);
-                // 1. 移除错误处理
-                line = line.replace(/\s*(\|\||&&).*$/i, '').trim();
-                // 2. 提取管道前有效命令
-                var pipeIdx = line.indexOf('|');
-                if (pipeIdx >= 0) line = line.substring(0, pipeIdx).trim();
-                // 3. 移除重定向
-                line = line.replace(/\d*>&\d+/g, '').replace(/>[^ ]*/g, '').trim();
-                if (!line) return;
+                // ★ 精确过滤：仅跳过明显是管道/校验的行，不误伤正常命令
+                if (/^(fastboot|adb)\s+.+\|/.test(line) || /findstr/i.test(line)) return;
                 var setMatch = line.match(/^\s*set\s+"?(\w+)=(.+?)"?\s*$/i);
                 if (setMatch) { vars[setMatch[1]] = resolveVars(setMatch[2]); return; }
-                var parts = splitCmd(line);
+                // 在提取命令前，先移除可能存在的无害重定向（如 >nul 2>&1），但保留主命令
+                var cleanLine = line.replace(/>.*$/i, '').trim();
+                if (!cleanLine) return;
+                var parts = splitCmd(cleanLine);
                 if (parts.length === 0) return;
                 parts = parts.map(function(p) { return expandAllForVars(p, stack); });
                 var step = makeStep(parts);
@@ -269,9 +261,12 @@ module.exports = {
                     continue;
                 }
 
+                // ★ 兼容 if errorlevel 等多行块
                 var ifStart = expanded.match(/^if\s+(.+?)\s*\(\s*$/i);
                 if (ifStart) {
+                    // 跳过纯 errorlevel 块，但保留其块结构以防止括号匹配错误
                     if (/^errorlevel\s+\d+$/i.test(ifStart[1])) {
+                        // 跳过整个块
                         var depth2 = 1;
                         while (idx < linesArray.length && depth2 > 0) {
                             var skipLine = linesArray[idx].trim();
